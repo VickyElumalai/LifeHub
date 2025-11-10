@@ -21,14 +21,27 @@ class SettingsToggleItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: isDark 
+            ? Colors.white.withOpacity(0.05)
+            : Colors.white,
         border: Border.all(
-          color: Colors.white.withOpacity(0.1),
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.1),
           width: 1,
         ),
         borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark ? [] : [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(18),
       child: Row(
@@ -55,8 +68,8 @@ class SettingsToggleItem extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppColors.getTextColor(context),
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -64,21 +77,21 @@ class SettingsToggleItem extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
+                  style: TextStyle(
+                    color: AppColors.getSubtitleColor(context),
                     fontSize: 13,
                   ),
                 ),
               ],
             ),
           ),
-          _buildToggleSwitch(),
+          _buildToggleSwitch(isDark),
         ],
       ),
     );
   }
 
-  Widget _buildToggleSwitch() {
+  Widget _buildToggleSwitch(bool isDark) {
     return GestureDetector(
       onTap: () => onToggle(!isEnabled),
       child: AnimatedContainer(
@@ -94,7 +107,11 @@ class SettingsToggleItem extends StatelessWidget {
                   ],
                 )
               : null,
-          color: isEnabled ? null : Colors.white.withOpacity(0.2),
+          color: isEnabled 
+              ? null 
+              : (isDark 
+                  ? Colors.white.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.1)),
           borderRadius: BorderRadius.circular(14),
         ),
         child: AnimatedAlign(
@@ -114,3 +131,4 @@ class SettingsToggleItem extends StatelessWidget {
     );
   }
 }
+

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:life_hub/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/core/constants/app_strings.dart';
@@ -9,10 +8,6 @@ import 'package:life_hub/providers/todo_provider.dart';
 import 'package:life_hub/providers/expense_provider.dart';
 import 'package:life_hub/features/dashboard/widgets/dashboard_card.dart';
 import 'package:life_hub/features/dashboard/widgets/stats_card.dart';
-import 'package:life_hub/features/maintenance/screens/maintenance_list_screen.dart';
-import 'package:life_hub/features/events/screens/events_list_screen.dart';
-import 'package:life_hub/features/todo/screens/todo_list_screen.dart';
-import 'package:life_hub/features/expense/screens/expense_list_screen.dart';
 import 'package:life_hub/features/settings/screens/settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -27,42 +22,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context, isDark),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(25),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionTitle(AppStrings.quickAccess),
+                    _buildSectionTitle(context, AppStrings.quickAccess),
                     const SizedBox(height: 15),
                     _buildQuickAccessCards(),
                     const SizedBox(height: 30),
-                    _buildSectionTitle(AppStrings.todaysOverview),
+                    _buildSectionTitle(context, AppStrings.todaysOverview),
                     const SizedBox(height: 15),
                     _buildQuickStats(),
                   ],
                 ),
               ),
             ),
-            _buildBottomNav(),
+            _buildBottomNav(context, isDark),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: Colors.white.withOpacity(0.1),
+            color: isDark 
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
             width: 1,
           ),
         ),
@@ -73,29 +72,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const AppLogo(
-                    size: 35,
-                    showText: false,
-                    animated: false,
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    AppStrings.appName,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+              Text(
+                AppStrings.appName,
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 5),
-              const Text(
+              Text(
                 AppStrings.appTagline,
                 style: TextStyle(
-                  color: AppColors.textGrey,
+                  color: AppColors.getSubtitleColor(context),
                   fontSize: 14,
                 ),
               ),
@@ -131,11 +120,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(BuildContext context, String title) {
     return Text(
       title,
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color: AppColors.getTextColor(context),
         fontSize: 18,
         fontWeight: FontWeight.w600,
       ),
@@ -163,10 +152,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.pinkGradientStart,
                 AppColors.pinkGradientEnd,
               ],
-               onTap: () => null,
-              // onTap: () => _navigateToScreen(
-              //   //const MaintenanceListScreen()
-              // ),
+              onTap: () {},
             ),
             DashboardCard(
               icon: '📅',
@@ -176,10 +162,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.blueGradientStart,
                 AppColors.blueGradientEnd,
               ],
-               onTap: () => null,
-              // onTap: () => _navigateToScreen(
-              //  // const EventsListScreen()
-              // ),
+              onTap: () {},
             ),
             DashboardCard(
               icon: '✓',
@@ -189,10 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.greenGradientStart,
                 AppColors.greenGradientEnd,
               ],
-               onTap: () => null,
-              // onTap: () => _navigateToScreen(
-              //  // const TodoListScreen()
-              // ),
+              onTap: () {},
             ),
             DashboardCard(
               icon: '💰',
@@ -202,10 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.yellowGradientStart,
                 AppColors.yellowGradientEnd,
               ],
-               onTap: () => null,
-              // onTap: () => _navigateToScreen(
-              //  // const ExpenseListScreen()
-              // ),
+              onTap: () {},
             ),
           ],
         );
@@ -234,13 +211,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context, bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.darkBackground.withOpacity(0.95),
+        color: isDark 
+            ? AppColors.darkBackground.withOpacity(0.95)
+            : Colors.white,
         border: Border(
           top: BorderSide(
-            color: Colors.white.withOpacity(0.1),
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
             width: 1,
           ),
         ),
@@ -249,17 +230,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(0, '🏠', 'Home'),
-          _buildNavItem(1, '📊', 'Stats'),
-          _buildNavItem(2, '➕', 'Add'),
-          _buildNavItem(3, '⚙️', 'Settings'),
+          _buildNavItem(context, 0, '🏠', 'Home'),
+          _buildNavItem(context, 1, '📊', 'Stats'),
+          _buildNavItem(context, 2, '➕', 'Add'),
+          _buildNavItem(context, 3, '⚙️', 'Settings'),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(int index, String icon, String label) {
+  Widget _buildNavItem(BuildContext context, int index, String icon, String label) {
     final isActive = _selectedIndex == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return GestureDetector(
       onTap: () {
         setState(() => _selectedIndex = index);
@@ -281,19 +264,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(
             label,
             style: TextStyle(
-              color: isActive ? AppColors.purpleGradientStart : AppColors.textGrey,
+              color: isActive 
+                  ? AppColors.purpleGradientStart 
+                  : (isDark ? AppColors.textGrey : AppColors.textLightGrey),
               fontSize: 12,
             ),
           ),
         ],
       ),
-    );
-  }
-
-  void _navigateToScreen(Widget screen) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => screen),
     );
   }
 }

@@ -19,16 +19,29 @@ class SettingsItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: isDark 
+              ? Colors.white.withOpacity(0.05)
+              : Colors.white,
           border: Border.all(
-            color: Colors.white.withOpacity(0.1),
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
             width: 1,
           ),
           borderRadius: BorderRadius.circular(16),
+          boxShadow: isDark ? [] : [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(18),
         child: Row(
@@ -55,8 +68,8 @@ class SettingsItem extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.getTextColor(context),
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -64,17 +77,17 @@ class SettingsItem extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
+                    style: TextStyle(
+                      color: AppColors.getSubtitleColor(context),
                       fontSize: 13,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
-              color: AppColors.textGrey,
+              color: AppColors.getSubtitleColor(context),
               size: 16,
             ),
           ],

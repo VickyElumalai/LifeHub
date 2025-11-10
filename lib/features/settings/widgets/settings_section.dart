@@ -13,8 +13,8 @@ class SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title.toUpperCase(),
-      style: const TextStyle(
-        color: AppColors.textGrey,
+      style: TextStyle(
+        color: AppColors.getSubtitleColor(context),
         fontSize: 13,
         fontWeight: FontWeight.w600,
         letterSpacing: 1,

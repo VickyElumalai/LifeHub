@@ -55,12 +55,16 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: Colors.white.withOpacity(0.1),
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
             width: 1,
           ),
         ),
@@ -73,23 +77,25 @@ class SettingsScreen extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(
                   Icons.arrow_back_ios_new,
-                  color: Colors.white,
+                  color: AppColors.getTextColor(context),
                   size: 18,
                 ),
               ),
             ),
           ),
           const SizedBox(width: 15),
-          const Text(
+          Text(
             'Settings',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.getTextColor(context),
               fontSize: 24,
               fontWeight: FontWeight.w700,
             ),
@@ -98,6 +104,7 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+
 
   Widget _buildAccountSection(BuildContext context) {
     return Column(
@@ -302,33 +309,40 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showLogoutDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.darkCard,
+        backgroundColor: isDark ? AppColors.darkCard : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        title: const Text(
+        title: Text(
           'Logout',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(
+            color: AppColors.getTextColor(context),
+          ),
         ),
-        content: const Text(
+        content: Text(
           'Are you sure you want to logout?',
-          style: TextStyle(color: AppColors.textGrey),
+          style: TextStyle(
+            color: AppColors.getSubtitleColor(context),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
+            child: Text(
               'Cancel',
-              style: TextStyle(color: AppColors.textGrey),
+              style: TextStyle(
+                color: AppColors.getSubtitleColor(context),
+              ),
             ),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              // Add logout logic here
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Logged out successfully'),

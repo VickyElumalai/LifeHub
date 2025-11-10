@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:life_hub/core/constants/app_colors.dart';
 
 class DashboardCard extends StatelessWidget {
   final String icon;
@@ -18,6 +19,8 @@ class DashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -31,7 +34,9 @@ class DashboardCard extends StatelessWidget {
             ],
           ),
           border: Border.all(
-            color: Colors.white.withOpacity(0.1),
+            color: isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.05),
             width: 1,
           ),
           borderRadius: BorderRadius.circular(20),
@@ -61,8 +66,8 @@ class DashboardCard extends StatelessWidget {
             const Spacer(),
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -70,8 +75,8 @@ class DashboardCard extends StatelessWidget {
             const SizedBox(height: 5),
             Text(
               count,
-              style: const TextStyle(
-                color: Color(0xFF8b92b8),
+              style: TextStyle(
+                color: AppColors.getSubtitleColor(context),
                 fontSize: 14,
               ),
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:life_hub/core/widgets/app_logo.dart';
 import 'package:provider/provider.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/core/constants/app_strings.dart';
@@ -72,18 +73,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                AppStrings.appName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                children: [
+                  const AppLogo(
+                    size: 35,
+                    showText: false,
+                    animated: false,
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    AppStrings.appName,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 5),
-              Text(
+              const Text(
                 AppStrings.appTagline,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textGrey,
                   fontSize: 14,
                 ),
@@ -152,9 +163,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.pinkGradientStart,
                 AppColors.pinkGradientEnd,
               ],
-              onTap: () => _navigateToScreen(
-                //const MaintenanceListScreen()
-              ),
+               onTap: () => null,
+              // onTap: () => _navigateToScreen(
+              //   //const MaintenanceListScreen()
+              // ),
             ),
             DashboardCard(
               icon: '📅',
@@ -164,9 +176,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.blueGradientStart,
                 AppColors.blueGradientEnd,
               ],
-              onTap: () => _navigateToScreen(
-               // const EventsListScreen()
-              ),
+               onTap: () => null,
+              // onTap: () => _navigateToScreen(
+              //  // const EventsListScreen()
+              // ),
             ),
             DashboardCard(
               icon: '✓',
@@ -176,9 +189,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.greenGradientStart,
                 AppColors.greenGradientEnd,
               ],
-              onTap: () => _navigateToScreen(
-               // const TodoListScreen()
-              ),
+               onTap: () => null,
+              // onTap: () => _navigateToScreen(
+              //  // const TodoListScreen()
+              // ),
             ),
             DashboardCard(
               icon: '💰',
@@ -188,9 +202,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.yellowGradientStart,
                 AppColors.yellowGradientEnd,
               ],
-              onTap: () => _navigateToScreen(
-               // const ExpenseListScreen()
-              ),
+               onTap: () => null,
+              // onTap: () => _navigateToScreen(
+              //  // const ExpenseListScreen()
+              // ),
             ),
           ],
         );
@@ -249,8 +264,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onTap: () {
         setState(() => _selectedIndex = index);
         if (index == 3) {
-          _navigateToScreen(
-           // const SettingsScreen()
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SettingsScreen()),
           );
         }
       },
@@ -274,10 +290,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _navigateToScreen() {
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (context) => screen),
-    // );
+  void _navigateToScreen(Widget screen) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    );
   }
 }

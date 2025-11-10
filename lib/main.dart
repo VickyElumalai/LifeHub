@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:life_hub/features/splash/splash_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:life_hub/providers/maintenance_provider.dart';
 import 'package:life_hub/providers/event_provider.dart';
 import 'package:life_hub/providers/todo_provider.dart';
 import 'package:life_hub/providers/expense_provider.dart';
 import 'package:life_hub/providers/theme_provider.dart';
+import 'package:life_hub/providers/settings_provider.dart';
 import 'package:life_hub/features/dashboard/screens/dashboard_screen.dart';
 
 void main() async {
@@ -32,6 +34,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => MaintenanceProvider()),
         ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => TodoProvider()),
@@ -45,7 +48,7 @@ class MyApp extends StatelessWidget {
             theme: themeProvider.lightTheme,
             darkTheme: themeProvider.darkTheme,
             themeMode: themeProvider.themeMode,
-            home: const DashboardScreen(),
+            home: const SplashScreen(),
           );
         },
       ),

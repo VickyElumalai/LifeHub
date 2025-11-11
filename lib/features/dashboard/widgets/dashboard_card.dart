@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 
 class DashboardCard extends StatelessWidget {
-  final String icon;
+  final Widget icon;
   final String title;
   final String count;
   final List<Color> gradientColors;
@@ -57,10 +57,7 @@ class DashboardCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Center(
-                child: Text(
-                  icon,
-                  style: const TextStyle(fontSize: 24),
-                ),
+                child: icon,
               ),
             ),
             const Spacer(),

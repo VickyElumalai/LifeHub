@@ -110,7 +110,7 @@ class SettingsScreen extends StatelessWidget {
     return Column(
       children: [
         SettingsItem(
-          icon: '👤',
+          icon: Image.asset('assets/images/profile.png',height: 30,width: 30,),
           title: 'Profile',
           subtitle: 'Edit your personal info',
           gradientColors: const [
@@ -132,7 +132,7 @@ class SettingsScreen extends StatelessWidget {
         return Column(
           children: [
             SettingsToggleItem(
-              icon: '🌙',
+              icon: Image.asset('assets/images/darkmode.png',height: 30,width: 30,),
               title: 'Dark Mode',
               subtitle: themeProvider.isDarkMode 
                   ? 'Currently enabled' 
@@ -146,7 +146,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SettingsToggleItem(
-              icon: '🔔',
+              icon: Image.asset('assets/images/notification.png',height: 30,width: 30,),
               title: 'Notifications',
               subtitle: settingsProvider.notificationsEnabled
                   ? 'Push notifications enabled'
@@ -160,7 +160,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SettingsToggleItem(
-              icon: '🔊',
+              icon: Image.asset('assets/images/sound.png',height: 30,width: 30,),
               title: 'Sound',
               subtitle: settingsProvider.soundEnabled
                   ? 'Sound effects enabled'
@@ -174,7 +174,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SettingsToggleItem(
-              icon: '📳',
+              icon: Image.asset('assets/images/vibrate.png',height: 30,width: 30,),
               title: 'Vibration',
               subtitle: settingsProvider.vibrationEnabled
                   ? 'Haptic feedback enabled'
@@ -196,7 +196,7 @@ class SettingsScreen extends StatelessWidget {
     return Column(
       children: [
         SettingsItem(
-          icon: '🔒',
+          icon: Image.asset('assets/images/privacy.png',height: 30,width: 30,),
           title: 'Privacy',
           subtitle: 'Manage your data',
           gradientColors: const [
@@ -210,7 +210,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SettingsItem(
-          icon: '💾',
+          icon: Image.asset('assets/images/backup.png',height: 30,width: 30,),
           title: 'Backup',
           subtitle: 'Sync & backup data',
           gradientColors: const [
@@ -224,7 +224,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SettingsItem(
-          icon: 'ℹ️',
+          icon: Image.asset('assets/images/about.png',height: 30,width: 30,),
           title: 'About',
           subtitle: 'Version 1.0.0',
           gradientColors: const [
@@ -269,8 +269,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Center(
-                child: Text('🚪', style: TextStyle(fontSize: 20)),
+              child:  Center(
+                child: Image.asset('assets/images/logout.png',height: 30,width: 30,),
               ),
             ),
             const SizedBox(width: 15),

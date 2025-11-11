@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 
 class SettingsItem extends StatelessWidget {
-  final String icon;
+  final Widget icon;
   final String title;
   final String subtitle;
   final List<Color> gradientColors;
@@ -58,7 +58,7 @@ class SettingsItem extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
-                child: Text(icon, style: const TextStyle(fontSize: 20)),
+                child: icon,
               ),
             ),
             const SizedBox(width: 15),

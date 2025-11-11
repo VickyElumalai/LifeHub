@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:life_hub/core/widgets/app_logo.dart';
+import 'package:life_hub/features/settings/widgets/profile_avatar.dart';
+import 'package:life_hub/providers/profile_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/core/constants/app_strings.dart';
@@ -66,56 +69,90 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Consumer<ProfileProvider>(
+        builder: (context, profileProvider, _) {
+          final profile = profileProvider.userProfile;
+          
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                AppStrings.appName,
-                style: TextStyle(
-                  color: AppColors.getTextColor(context),
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                AppStrings.appTagline,
-                style: TextStyle(
-                  color: AppColors.getSubtitleColor(context),
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-          Container(
-            width: 50,
-            height: 50,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.purpleGradientStart,
-                  AppColors.purpleGradientEnd,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const AppLogo(
+                        size: 35,
+                        showText: false,  
+                        animated: false,
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        AppStrings.appName,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    AppStrings.appTagline,
+                    style: TextStyle(
+                      color: AppColors.getSubtitleColor(context),
+                      fontSize: 14,
+                    ),
+                  ),
                 ],
               ),
-            ),
-            child: const Center(
-              child: Text(
-                'JD',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
+              // Use ProfileAvatar if profile exists, otherwise default avatar
+              if (profile != null)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                  child: ProfileAvatar(
+                    profile: profile,
+                    size: 50,
+                    showBorder: false,
+                  ),
+                )
+              else
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.purpleGradientStart,
+                        AppColors.purpleGradientEnd,
+                      ],
+                    ),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'JD',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -145,27 +182,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           childAspectRatio: 1.1,
           children: [
             DashboardCard(
-              icon: '🔧',
-              title: AppStrings.maintenance,
-              count: '${maintenanceProvider.pendingCount} pending',
-              gradientColors: const [
-                AppColors.pinkGradientStart,
-                AppColors.pinkGradientEnd,
-              ],
-              onTap: () {},
-            ),
-            DashboardCard(
-              icon: '📅',
-              title: AppStrings.events,
-              count: '${eventProvider.upcomingCount} upcoming',
-              gradientColors: const [
-                AppColors.blueGradientStart,
-                AppColors.blueGradientEnd,
-              ],
-              onTap: () {},
-            ),
-            DashboardCard(
-              icon: '✓',
+              icon: Image.asset(
+                'assets/images/todo2.png',
+                height: 40,
+                width: 40,
+              ),
               title: AppStrings.todo,
               count: '${todoProvider.totalTasks} tasks',
               gradientColors: const [
@@ -173,9 +194,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.greenGradientEnd,
               ],
               onTap: () {},
-            ),
+            ),            
             DashboardCard(
-              icon: '💰',
+              icon: Image.asset(
+                'assets/images/calendar.png',
+                height: 40,
+                width: 40,
+              ),
+              title: AppStrings.events,
+              count: '${eventProvider.upcomingCount} upcoming',
+              gradientColors: const [
+                AppColors.blueGradientStart,
+                AppColors.blueGradientEnd,
+              ],
+              onTap: () {},
+            ),  
+            DashboardCard(
+              icon: Image.asset(
+                'assets/images/maintenance.png',
+                height: 30,
+                width: 30,
+              ),
+              title: AppStrings.maintenance,
+              count: '${maintenanceProvider.pendingCount} pending',
+              gradientColors: const [
+                AppColors.pinkGradientStart,
+                AppColors.pinkGradientEnd,
+              ],
+              onTap: () {},
+            ),          
+            DashboardCard(
+              icon: Image.asset(
+                'assets/images/expense.png',
+                height: 40,
+                width: 40,
+              ),
               title: AppStrings.expense,
               count: '\$${expenseProvider.totalSpent.toStringAsFixed(0)}',
               gradientColors: const [
@@ -230,23 +283,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(context, 0, '🏠', 'Home'),
-          _buildNavItem(context, 1, '📊', 'Stats'),
-          _buildNavItem(context, 2, '➕', 'Add'),
-          _buildNavItem(context, 3, '⚙️', 'Settings'),
+          _buildNavItem(
+            context, 0,
+            Image.asset('assets/images/home.png',height: 40,width: 40,),
+            'Home'
+          ),
+          _buildNavItem(
+            context, 1,
+            Image.asset('assets/images/stat.png',height: 35,width: 35,),
+            'Stats'
+          ),
+          _buildNavItem(
+            context, 2,
+            Image.asset('assets/images/settings.png',height: 35,width: 35,),
+            'Settings'
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildNavItem(BuildContext context, int index, String icon, String label) {
+  Widget _buildNavItem(BuildContext context, int index, Widget icon, String label) {
     final isActive = _selectedIndex == index;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return GestureDetector(
       onTap: () {
         setState(() => _selectedIndex = index);
-        if (index == 3) {
+        if (index == 2) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const SettingsScreen()),
@@ -256,10 +320,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            icon,
-            style: const TextStyle(fontSize: 24),
-          ),
+          icon,
           const SizedBox(height: 5),
           Text(
             label,

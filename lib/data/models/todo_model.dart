@@ -1,47 +1,71 @@
 class TodoModel {
   final String id;
-  final String title;
-  final String category;
+  final String content;
   final String priority;
-  final DateTime dueDate;
+  final DateTime? endTime;
   final DateTime createdAt;
-  bool isCompleted;
-  String? attachmentPath;
+  String? voicePath;
+  String? imagePath;
+  String status;
 
   TodoModel({
     required this.id,
-    required this.title,
-    required this.category,
+    required this.content,
     required this.priority,
-    required this.dueDate,
+    this.endTime,
     required this.createdAt,
-    this.isCompleted = false,
-    this.attachmentPath,
+    this.voicePath,
+    this.imagePath,
+    this.status = 'pending',
   });
+
+  bool get isCompleted => status == 'completed';
+  bool get isSkipped => status == 'skipped';
+  bool get isPending => status == 'pending';
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'title': title,
-      'category': category,
+      'content': content,
       'priority': priority,
-      'dueDate': dueDate.toIso8601String(),
+      'endTime': endTime?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
-      'isCompleted': isCompleted,
-      'attachmentPath': attachmentPath,
+      'voicePath': voicePath,
+      'imagePath': imagePath,
+      'status': status,
     };
   }
 
   factory TodoModel.fromJson(Map<String, dynamic> json) {
     return TodoModel(
       id: json['id'],
-      title: json['title'],
-      category: json['category'],
+      content: json['content'],
       priority: json['priority'],
-      dueDate: DateTime.parse(json['dueDate']),
+      endTime: json['endTime'] != null ? DateTime.parse(json['endTime']) : null,
       createdAt: DateTime.parse(json['createdAt']),
-      isCompleted: json['isCompleted'] ?? false,
-      attachmentPath: json['attachmentPath'],
+      voicePath: json['voicePath'],
+      imagePath: json['imagePath'],
+      status: json['status'] ?? 'pending',
+    );
+  }
+
+  TodoModel copyWith({
+    String? content,
+    String? priority,
+    DateTime? endTime,
+    String? voicePath,
+    String? imagePath,
+    String? status,
+  }) {
+    return TodoModel(
+      id: id,
+      content: content ?? this.content,
+      priority: priority ?? this.priority,
+      endTime: endTime ?? this.endTime,
+      createdAt: createdAt,
+      voicePath: voicePath ?? this.voicePath,
+      imagePath: imagePath ?? this.imagePath,
+      status: status ?? this.status,
     );
   }
 }

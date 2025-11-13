@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:life_hub/providers/maintenance_provider.dart';
 import 'package:life_hub/providers/event_provider.dart';
 import 'package:life_hub/providers/todo_provider.dart';
@@ -9,6 +10,7 @@ import 'package:life_hub/providers/theme_provider.dart';
 import 'package:life_hub/providers/settings_provider.dart';
 import 'package:life_hub/providers/profile_provider.dart';
 import 'package:life_hub/features/dashboard/screens/dashboard_screen.dart';
+import 'package:life_hub/data/local/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +25,20 @@ void main() async {
   await Hive.openBox('expenseBox');
   await Hive.openBox('settingsBox');
   
+  // Initialize notifications
+  await NotificationService.initialize();
+  
+  // Request notification permission
+  await _requestNotificationPermission();
+  
   runApp(const MyApp());
+}
+
+Future<void> _requestNotificationPermission() async {
+  final status = await Permission.notification.status;
+  if (status.isDenied) {
+    await Permission.notification.request();
+  }
 }
 
 class MyApp extends StatelessWidget {

@@ -37,17 +37,21 @@ class NotificationService {
   }) async {
     await initialize();
 
-    // Schedule 1 hour before
-    final notificationTime = scheduledTime.subtract(const Duration(hours: 1));
+    // Schedule 1 MINUTE before (changed from 1 hour)
+    final notificationTime = scheduledTime.subtract(const Duration(minutes: 1));
     
     // Only schedule if notification time is in the future
     if (notificationTime.isBefore(DateTime.now())) {
+      print('Notification time is in the past, not scheduling');
       return;
     }
 
+    print('Scheduling notification for: $notificationTime');
+    print('Task due time: $scheduledTime');
+
     await _notifications.zonedSchedule(
       id.hashCode,
-      'Reminder: $title',
+      'Task Due Soon! ⏰',
       content,
       tz.TZDateTime.from(notificationTime, tz.local),
       const NotificationDetails(
@@ -57,8 +61,13 @@ class NotificationService {
           channelDescription: 'Notifications for upcoming tasks',
           importance: Importance.high,
           priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:

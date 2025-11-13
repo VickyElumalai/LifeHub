@@ -132,7 +132,14 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Navigator.pop(context),
+            onTap: () async {
+              if (_isRecording) {
+                await _stopRecording();
+              }
+              if (mounted) {
+                Navigator.pop(context);
+              }
+            },
             child: Container(
               width: 40,
               height: 40,

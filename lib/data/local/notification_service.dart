@@ -41,6 +41,7 @@ class NotificationService {
     );
     
     _initialized = true;
+    print('NotificationService initialized successfully');
   }
 
   static Future<void> scheduleTaskNotification({
@@ -54,13 +55,12 @@ class NotificationService {
     // Schedule 1 MINUTE before
     final notificationTime = scheduledTime.subtract(const Duration(minutes: 1));
     
-    // Only schedule if notification time is in the future
-    if (notificationTime.isBefore(DateTime.now())) {    
+   
 
     try {
       // Convert to TZDateTime
-      final tzNotificationTime = tz.TZDateTime.from(notificationTime, tz.local);     
-    
+      final tzNotificationTime = tz.TZDateTime.from(notificationTime, tz.local);
+  
       await _notifications.zonedSchedule(
         id.hashCode,
         'Task Due Soon! ⏰',
@@ -100,13 +100,18 @@ class NotificationService {
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: null,
-      );            
+      );
       
+      
+      // Verify pending notifications
+      final pending = await _notifications.pendingNotificationRequests();
+      for (var notification in pending) {
+        print('   - ID: ${notification.id}, Title: ${notification.title}');
+      }
     } catch (e) {
       print('   Stack trace: ${StackTrace.current}');
       rethrow;
     }
-  }
   }
 
   static Future<void> cancelNotification(String id) async {
@@ -117,4 +122,52 @@ class NotificationService {
     await _notifications.cancelAll();
   }
 
+  // Add method to check pending notifications
+  static Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    return await _notifications.pendingNotificationRequests();
+  }
+
+  // Add immediate test notification
+  static Future<void> showTestNotification() async {
+    await initialize();
+    
+    await _notifications.show(
+      999999,
+      ' Test Notification',
+      'If you see this, notifications are working!',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'task_reminders',
+          'Task Reminders',
+          channelDescription: 'Notifications for upcoming tasks',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+    );
+    
+  }
+
+  // Request all necessary permissions
+  static Future<bool> requestPermissions() async {
+    // Request notification permission
+    final notificationStatus = await Permission.notification.request();
+    
+    // For Android 12+, request exact alarm permission
+    if (await Permission.scheduleExactAlarm.isDenied) {
+      final alarmStatus = await Permission.scheduleExactAlarm.request();
+      print('Exact alarm permission: ${alarmStatus.isGranted}');
+    }
+    
+    print('Notification permission: ${notificationStatus.isGranted}');
+    
+    return notificationStatus.isGranted;
+  }
 }

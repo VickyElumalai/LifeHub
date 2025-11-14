@@ -35,10 +35,15 @@ void main() async {
 }
 
 Future<void> _requestNotificationPermission() async {
-  final status = await Permission.notification.status;
-  if (status.isDenied) {
-    await Permission.notification.request();
+  final notificationStatus = await Permission.notification.request();
+  if (await Permission.scheduleExactAlarm.isDenied) {
+    final alarmStatus = await Permission.scheduleExactAlarm.request();
   }
+
+  final hasNotification = await Permission.notification.isGranted;
+  final hasExactAlarm = await Permission.scheduleExactAlarm.isGranted || 
+                        await Permission.scheduleExactAlarm.isLimited;
+
 }
 
 class MyApp extends StatelessWidget {

@@ -1,6 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:permission_handler/permission_handler.dart';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
@@ -11,7 +14,12 @@ class NotificationService {
   static Future<void> initialize() async {
     if (_initialized) return;
 
+    // Initialize timezone database
     tz.initializeTimeZones();
+    
+    // Set local timezone (adjust to your timezone)
+    // For India (Tiruvannamalai), use 'Asia/Kolkata'
+    tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -25,7 +33,13 @@ class NotificationService {
       iOS: iosSettings,
     );
 
-    await _notifications.initialize(initSettings);
+    await _notifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        print('Notification clicked: ${response.payload}');
+      },
+    );
+    
     _initialized = true;
   }
 
@@ -37,42 +51,62 @@ class NotificationService {
   }) async {
     await initialize();
 
-    // Schedule 1 MINUTE before (changed from 1 hour)
+    // Schedule 1 MINUTE before
     final notificationTime = scheduledTime.subtract(const Duration(minutes: 1));
     
     // Only schedule if notification time is in the future
-    if (notificationTime.isBefore(DateTime.now())) {
-      print('Notification time is in the past, not scheduling');
-      return;
+    if (notificationTime.isBefore(DateTime.now())) {    
+
+    try {
+      // Convert to TZDateTime
+      final tzNotificationTime = tz.TZDateTime.from(notificationTime, tz.local);     
+    
+      await _notifications.zonedSchedule(
+        id.hashCode,
+        'Task Due Soon! ⏰',
+        content,
+        tzNotificationTime,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'task_reminders',
+            'Task Reminders',
+            channelDescription: 'Notifications for upcoming tasks',
+            importance: Importance.max,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            playSound: true,
+            enableVibration: true,
+            showWhen: true,
+            enableLights: true,
+            ledColor: const Color(0xFF667eea),
+            ledOnMs: 1000,
+            ledOffMs: 500,
+            fullScreenIntent: true,
+            category: AndroidNotificationCategory.alarm,
+            visibility: NotificationVisibility.public,
+            ongoing: false,
+            autoCancel: true,
+            channelShowBadge: true,
+            ticker: 'Task reminder',
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+            sound: 'default',
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: null,
+      );            
+      
+    } catch (e) {
+      print('   Stack trace: ${StackTrace.current}');
+      rethrow;
     }
-
-    print('Scheduling notification for: $notificationTime');
-    print('Task due time: $scheduledTime');
-
-    await _notifications.zonedSchedule(
-      id.hashCode,
-      'Task Due Soon! ⏰',
-      content,
-      tz.TZDateTime.from(notificationTime, tz.local),
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'task_reminders',
-          'Task Reminders',
-          channelDescription: 'Notifications for upcoming tasks',
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
+  }
   }
 
   static Future<void> cancelNotification(String id) async {
@@ -82,4 +116,5 @@ class NotificationService {
   static Future<void> cancelAllNotifications() async {
     await _notifications.cancelAll();
   }
+
 }

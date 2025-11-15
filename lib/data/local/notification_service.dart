@@ -1,9 +1,60 @@
 import 'dart:ui';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest_all.dart' as tz;
-import 'package:permission_handler/permission_handler.dart';
+import 'package:workmanager/workmanager.dart';
+
+// ⚠️ CRITICAL: This callback MUST be a top-level function (not inside a class)
+// WorkManager will call this function in the background
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    try {
+      // Initialize notifications in background
+      final FlutterLocalNotificationsPlugin notifications = 
+          FlutterLocalNotificationsPlugin();
+      
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidSettings);
+      await notifications.initialize(initSettings);
+
+      // Get notification details from inputData
+      final title = inputData?['title'] ?? 'Task Due Soon';
+      final content = inputData?['content'] ?? 'Your task is due';
+      final id = inputData?['id'] ?? 0;
+
+      // Show the notification
+      await notifications.show(
+        id,
+        '⏰ $title',
+        content,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'task_reminders',
+            'Task Reminders',
+            channelDescription: 'Notifications for upcoming tasks',
+            importance: Importance.max,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            playSound: true,
+            enableVibration: true,
+            enableLights: true,
+            ledColor: Color(0xFF667eea),
+            ledOnMs: 1000,
+            ledOffMs: 500,
+            visibility: NotificationVisibility.public,
+            fullScreenIntent: true,
+            category: AndroidNotificationCategory.alarm,
+          ),
+        ),
+      );
+
+      return Future.value(true);
+    } catch (e) {
+      // Return false if something went wrong
+      return Future.value(false);
+    }
+  });
+}
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notifications =
@@ -11,16 +62,17 @@ class NotificationService {
 
   static bool _initialized = false;
 
+  /// Initialize the notification service and WorkManager
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    // Initialize timezone database
-    tz.initializeTimeZones();
-    
-    // Set local timezone (adjust to your timezone)
-    // For India (Tiruvannamalai), use 'Asia/Kolkata'
-    tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
+    // Initialize WorkManager with the callback dispatcher
+    await Workmanager().initialize(
+      callbackDispatcher,
+      isInDebugMode: false, // Set to false for production
+    );
 
+    // Initialize local notifications
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -33,17 +85,13 @@ class NotificationService {
       iOS: iosSettings,
     );
 
-    await _notifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        print('Notification clicked: ${response.payload}');
-      },
-    );
+    await _notifications.initialize(initSettings);
     
     _initialized = true;
-    print('NotificationService initialized successfully');
   }
 
+  /// Schedule a notification for a task
+  /// This will work even when the app is closed or phone is sleeping
   static Future<void> scheduleTaskNotification({
     required String id,
     required String title,
@@ -52,88 +100,59 @@ class NotificationService {
   }) async {
     await initialize();
 
-    // Schedule 1 MINUTE before
+    // Calculate notification time (1 minute before due time)
     final notificationTime = scheduledTime.subtract(const Duration(minutes: 1));
     
-   
-
-    try {
-      // Convert to TZDateTime
-      final tzNotificationTime = tz.TZDateTime.from(notificationTime, tz.local);
-  
-      await _notifications.zonedSchedule(
-        id.hashCode,
-        'Task Due Soon! ⏰',
-        content,
-        tzNotificationTime,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'task_reminders',
-            'Task Reminders',
-            channelDescription: 'Notifications for upcoming tasks',
-            importance: Importance.max,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-            playSound: true,
-            enableVibration: true,
-            showWhen: true,
-            enableLights: true,
-            ledColor: const Color(0xFF667eea),
-            ledOnMs: 1000,
-            ledOffMs: 500,
-            fullScreenIntent: true,
-            category: AndroidNotificationCategory.alarm,
-            visibility: NotificationVisibility.public,
-            ongoing: false,
-            autoCancel: true,
-            channelShowBadge: true,
-            ticker: 'Task reminder',
-          ),
-          iOS: DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-            sound: 'default',
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: null,
-      );
-      
-      
-      // Verify pending notifications
-      final pending = await _notifications.pendingNotificationRequests();
-      for (var notification in pending) {
-        print('   - ID: ${notification.id}, Title: ${notification.title}');
-      }
-    } catch (e) {
-      print('   Stack trace: ${StackTrace.current}');
-      rethrow;
+    // Check if time is in the future
+    if (notificationTime.isBefore(DateTime.now())) {
+      return;
     }
+
+    // Calculate the delay from now
+    final delay = notificationTime.difference(DateTime.now());
+    
+    // Create a unique task name using the task ID
+    final taskName = 'notification_$id';
+
+    // Schedule the one-time background task
+    await Workmanager().registerOneOffTask(
+      taskName,
+      taskName,
+      initialDelay: delay,
+      inputData: {
+        'title': title,
+        'content': content,
+        'id': id.hashCode.abs() % 2147483647, // Ensure it's a valid int
+      },
+      constraints: Constraints(
+        networkType: NetworkType.notRequired,
+        requiresBatteryNotLow: false,
+        requiresCharging: false,
+        requiresDeviceIdle: false,
+        requiresStorageNotLow: false,
+      ),
+    );
   }
 
+  /// Cancel a scheduled notification
   static Future<void> cancelNotification(String id) async {
-    await _notifications.cancel(id.hashCode);
+    final taskName = 'notification_$id';
+    await Workmanager().cancelByUniqueName(taskName);
   }
 
+  /// Cancel all scheduled notifications
   static Future<void> cancelAllNotifications() async {
+    await Workmanager().cancelAll();
     await _notifications.cancelAll();
   }
 
-  // Add method to check pending notifications
-  static Future<List<PendingNotificationRequest>> getPendingNotifications() async {
-    return await _notifications.pendingNotificationRequests();
-  }
-
-  // Add immediate test notification
+  /// Show an immediate test notification (for testing purposes)
   static Future<void> showTestNotification() async {
     await initialize();
     
     await _notifications.show(
       999999,
-      ' Test Notification',
+      '🔔 Test Notification',
       'If you see this, notifications are working!',
       const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -145,29 +164,7 @@ class NotificationService {
           playSound: true,
           enableVibration: true,
         ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
       ),
     );
-    
-  }
-
-  // Request all necessary permissions
-  static Future<bool> requestPermissions() async {
-    // Request notification permission
-    final notificationStatus = await Permission.notification.request();
-    
-    // For Android 12+, request exact alarm permission
-    if (await Permission.scheduleExactAlarm.isDenied) {
-      final alarmStatus = await Permission.scheduleExactAlarm.request();
-      print('Exact alarm permission: ${alarmStatus.isGranted}');
-    }
-    
-    print('Notification permission: ${notificationStatus.isGranted}');
-    
-    return notificationStatus.isGranted;
   }
 }

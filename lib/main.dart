@@ -28,22 +28,11 @@ void main() async {
   // Initialize notifications
   await NotificationService.initialize();
   
-  // Request notification permission
-  await _requestNotificationPermission();
+  // Request permissions
+  await Permission.notification.request();
+  await Permission.scheduleExactAlarm.request();
   
   runApp(const MyApp());
-}
-
-Future<void> _requestNotificationPermission() async {
-  final notificationStatus = await Permission.notification.request();
-  if (await Permission.scheduleExactAlarm.isDenied) {
-    final alarmStatus = await Permission.scheduleExactAlarm.request();
-  }
-
-  final hasNotification = await Permission.notification.isGranted;
-  final hasExactAlarm = await Permission.scheduleExactAlarm.isGranted || 
-                        await Permission.scheduleExactAlarm.isLimited;
-
 }
 
 class MyApp extends StatelessWidget {

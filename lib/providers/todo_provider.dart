@@ -17,7 +17,6 @@ class TodoProvider extends ChangeNotifier {
       .toList()).length;
   
   int get completedTasks => _todoList.where((task) => task.isCompleted).length;
-  
   int get skippedTasks => _todoList.where((task) => task.isSkipped).length;
   
   double get completionPercentage {
@@ -48,14 +47,12 @@ class TodoProvider extends ChangeNotifier {
   List<TodoModel> _getFilteredList(List<TodoModel> list) {
     var filtered = list;
     
-    // Filter by search query
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((task) =>
         task.content.toLowerCase().contains(_searchQuery.toLowerCase())
       ).toList();
     }
     
-    // Filter by priority
     if (_filterPriority != 'all') {
       filtered = filtered.where((task) =>
         task.priority == _filterPriority
@@ -90,92 +87,63 @@ class TodoProvider extends ChangeNotifier {
       _todoList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       notifyListeners();
     } catch (e) {
+      debugPrint('Error loading todos: $e');
     }
   }
   
   Future<void> addTodo(TodoModel todo, {bool enableNotifications = true}) async {
     try {
-      
-      // Save to Hive
       await HiveService.saveData('todoBox', todo.id, todo.toJson());
       _todoList.add(todo);
       _todoList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       
-      // Schedule notification if conditions are met
+      // Schedule notification if enabled and has due time
       if (enableNotifications && todo.endTime != null) {
-        
-        final now = DateTime.now();
         final notificationTime = todo.endTime!.subtract(const Duration(minutes: 1));
-        
-        
-        if (notificationTime.isAfter(now)) {
-          try {
-            await NotificationService.scheduleTaskNotification(
-              id: todo.id,
-              title: 'Task Due Soon',
-              content: todo.content,
-              scheduledTime: todo.endTime!,
-            );
-            
-            // Verify it was scheduled
-            final pending = await NotificationService.getPendingNotifications();
-            print('   Total pending notifications: ${pending.length}');
-          } catch (e) {
-            print('   Failed to schedule notification: $e');
-          }
-        } else {
-          print('   Notification time is in the past, skipping');
+        if (notificationTime.isAfter(DateTime.now())) {
+          await NotificationService.scheduleTaskNotification(
+            id: todo.id,
+            title: 'Task Due Soon',
+            content: todo.content,
+            scheduledTime: todo.endTime!,
+          );
         }
-      } else {
-        if (!enableNotifications) {
-          print('    Notifications disabled in settings');
-        }
-        
       }
       
       notifyListeners();
     } catch (e) {
+      debugPrint('Error adding todo: $e');
       rethrow;
     }
   }
   
   Future<void> updateTodo(TodoModel todo, {bool enableNotifications = true}) async {
     try {
-      
       await HiveService.saveData('todoBox', todo.id, todo.toJson());
       final index = _todoList.indexWhere((item) => item.id == todo.id);
       if (index != -1) {
         _todoList[index] = todo;
         
+        // Cancel old notification
         await NotificationService.cancelNotification(todo.id);
         
-        // Schedule new notification if conditions are met
+        // Schedule new notification if needed
         if (enableNotifications && todo.endTime != null && todo.isPending) {
-        
-          
-          final now = DateTime.now();
           final notificationTime = todo.endTime!.subtract(const Duration(minutes: 1));
-          
-          if (notificationTime.isAfter(now)) {
-            try {
-              await NotificationService.scheduleTaskNotification(
-                id: todo.id,
-                title: 'Task Due Soon',
-                content: todo.content,
-                scheduledTime: todo.endTime!,
-              );
-            } catch (e) {
-              print('   Failed to schedule updated notification: $e');
-            }
-          } else {
-            print('    Notification time is in the past');
+          if (notificationTime.isAfter(DateTime.now())) {
+            await NotificationService.scheduleTaskNotification(
+              id: todo.id,
+              title: 'Task Due Soon',
+              content: todo.content,
+              scheduledTime: todo.endTime!,
+            );
           }
         }
         
         notifyListeners();
       }
     } catch (e) {
-      print('Error updating todo: $e');
+      debugPrint('Error updating todo: $e');
       rethrow;
     }
   }
@@ -189,6 +157,7 @@ class TodoProvider extends ChangeNotifier {
         await NotificationService.cancelNotification(id);
       }
     } catch (e) {
+      debugPrint('Error marking as completed: $e');
     }
   }
   
@@ -201,6 +170,7 @@ class TodoProvider extends ChangeNotifier {
         await NotificationService.cancelNotification(id);
       }
     } catch (e) {
+      debugPrint('Error marking as skipped: $e');
     }
   }
   
@@ -209,13 +179,11 @@ class TodoProvider extends ChangeNotifier {
       final index = _todoList.indexWhere((item) => item.id == id);
       if (index != -1) {
         final updatedTodo = _todoList[index].copyWith(status: 'pending');
-        
-        // Check if notifications are enabled
         final notificationsEnabled = await HiveService.getData('settingsBox', 'notifications') ?? true;
-        
         await updateTodo(updatedTodo, enableNotifications: notificationsEnabled);
       }
     } catch (e) {
+      debugPrint('Error marking as pending: $e');
     }
   }
   
@@ -226,6 +194,7 @@ class TodoProvider extends ChangeNotifier {
       _todoList.removeWhere((item) => item.id == id);
       notifyListeners();
     } catch (e) {
+      debugPrint('Error deleting todo: $e');
     }
   }
   

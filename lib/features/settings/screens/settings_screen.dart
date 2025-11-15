@@ -39,8 +39,7 @@ class SettingsScreen extends StatelessWidget {
                     const SizedBox(height: 30),
                     const SettingsSection(title: 'App'),
                     const SizedBox(height: 12),
-                    _buildAppSection(context),
-                    
+                    _buildAppSection(context),                  
                     const SizedBox(height: 30),
                     _buildLogoutButton(context),
                     const SizedBox(height: 20),

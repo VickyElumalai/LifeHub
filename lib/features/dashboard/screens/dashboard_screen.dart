@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:life_hub/core/widgets/app_logo.dart';
+import 'package:life_hub/features/events/screens/events_list_screen.dart';
+import 'package:life_hub/features/loan_maintenance/screens/loan_maintenance_list_screen.dart';
 import 'package:life_hub/features/settings/widgets/profile_avatar.dart';
 import 'package:life_hub/features/todo/screens/todo_list_screen.dart';
 import 'package:life_hub/providers/profile_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/core/constants/app_strings.dart';
-import 'package:life_hub/providers/maintenance_provider.dart';
+import 'package:life_hub/providers/loan_maintenance_provider.dart';
 import 'package:life_hub/providers/event_provider.dart';
 import 'package:life_hub/providers/todo_provider.dart';
 import 'package:life_hub/providers/expense_provider.dart';
@@ -170,7 +172,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildQuickAccessCards() {
-    return Consumer4<MaintenanceProvider, EventProvider, TodoProvider,
+    return Consumer4<LoanMaintenanceProvider, EventProvider, TodoProvider,
         ExpenseProvider>(
       builder: (context, maintenanceProvider, eventProvider, todoProvider,
           expenseProvider, _) {
@@ -213,7 +215,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.blueGradientStart,
                 AppColors.blueGradientEnd,
               ],
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const EventsListScreen()),
+                );
+              },
             ),  
             DashboardCard(
               icon: Image.asset(
@@ -222,12 +229,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: 30,
               ),
               title: AppStrings.maintenance,
-              count: '${maintenanceProvider.pendingCount} pending',
+              count: '',
               gradientColors: const [
                 AppColors.pinkGradientStart,
                 AppColors.pinkGradientEnd,
               ],
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) =>  LoanMaintenanceListScreen()),
+                );
+              },
             ),          
             DashboardCard(
               icon: Image.asset(

@@ -134,6 +134,74 @@ class NotificationService {
     );
   }
 
+  static Future<void> scheduleBillNotification({
+    required String id,
+    required String title,
+    required String content,
+    required DateTime scheduledTime,
+  }) async {
+    final now = DateTime.now();
+
+    if (scheduledTime.isBefore(now)) {
+      print('⚠️ Bill notification time is in the past, skipping');
+      return;
+    }
+
+    final delay = scheduledTime.difference(now);
+
+    print('💰 Scheduling bill notification:');
+    print('   ID: $id');
+    print('   Time: $scheduledTime');
+    print('   Delay: ${delay.inHours}h');
+
+    await Workmanager().registerOneOffTask(
+      'bill_$id',
+      'billNotification',
+      initialDelay: delay,
+      inputData: {
+        'id': id.hashCode,
+        'title': title,
+        'body': content,
+        'type': 'bill',
+      },
+    );
+
+    print('✅ Bill notification scheduled');
+  }
+
+
+  static Future<void> scheduleReminder({
+    required String reminderId,      // unique per reminder (eventId_reminderIndex)
+    required String title,
+    required String body,
+    required DateTime fireAt,        // exact DateTime the notification should appear
+  }) async {
+    await initialize();
+
+    // Do not schedule past dates
+    if (fireAt.isBefore(DateTime.now())) return;
+
+    final delay = fireAt.difference(DateTime.now());
+
+    await Workmanager().registerOneOffTask(
+      reminderId,                 // unique task name
+      'event_reminder_task',      // **same** for all reminders (required by Workmanager)
+      initialDelay: delay,
+      inputData: {
+        'title': title,
+        'body': body,
+        'id': reminderId.hashCode.abs() % 2147483647,
+      },
+      constraints: Constraints(
+        networkType: NetworkType.notRequired,
+        requiresBatteryNotLow: false,
+        requiresCharging: false,
+        requiresDeviceIdle: false,
+        requiresStorageNotLow: false,
+      ),
+    );
+  }
+
   /// Cancel a scheduled notification
   static Future<void> cancelNotification(String id) async {
     final taskName = 'notification_$id';
@@ -167,4 +235,72 @@ class NotificationService {
       ),
     );
   }
+  static Future<void> scheduleMaintenanceNotification({
+      required String id,
+      required String title,
+      required String content,
+      required DateTime scheduledTime,
+    }) async {
+      final now = DateTime.now();
+
+      // Schedule notification 1 day before at 9 AM
+      final oneDayBefore = DateTime(
+        scheduledTime.year,
+        scheduledTime.month,
+        scheduledTime.day - 1,
+        9,
+        0,
+      );
+
+      // Schedule notification on due date at 9 AM
+      final onDueDate = DateTime(
+        scheduledTime.year,
+        scheduledTime.month,
+        scheduledTime.day,
+        9,
+        0,
+      );
+
+      print('🔧 Scheduling maintenance notifications:');
+      print('   ID: $id');
+      print('   Due date: $scheduledTime');
+
+      // Schedule 1-day before notification
+      if (oneDayBefore.isAfter(now)) {
+        final delay1Day = oneDayBefore.difference(now);
+        print('   1-day reminder: $oneDayBefore (${delay1Day.inHours}h)');
+
+        await Workmanager().registerOneOffTask(
+          'maintenance_${id}_1day',
+          'maintenanceNotification',
+          initialDelay: delay1Day,
+          inputData: {
+            'id': '${id}_1day'.hashCode,
+            'title': '⚠️ Maintenance Due Tomorrow',
+            'body': content,
+            'type': 'maintenance',
+          },
+        );
+      }
+
+      // Schedule due date notification
+      if (onDueDate.isAfter(now)) {
+        final delayDueDate = onDueDate.difference(now);
+        print('   Due date reminder: $onDueDate (${delayDueDate.inHours}h)');
+
+        await Workmanager().registerOneOffTask(
+          'maintenance_$id',
+          'maintenanceNotification',
+          initialDelay: delayDueDate,
+          inputData: {
+            'id': id.hashCode,
+            'title': '🔧 Maintenance Due Today!',
+            'body': content,
+            'type': 'maintenance',
+          },
+        );
+      }
+
+      print('✅ Maintenance notifications scheduled');
+    }
 }

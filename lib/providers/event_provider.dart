@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:life_hub/data/models/event_model.dart';
-import 'package:life_hub/data/local/hive_service.dart';
-import 'package:life_hub/data/local/notification_service.dart';
+import 'package:life_hub/data/service/hive_service.dart';
+import 'package:life_hub/data/service/notification_service.dart';
 
 class EventProvider extends ChangeNotifier {
   List<EventModel> _eventList = [];
@@ -16,39 +16,40 @@ class EventProvider extends ChangeNotifier {
   
   List<EventModel> get todayEvents {
     final now = DateTime.now();
-    return _eventList.where((event) {
-      return event.dateTime.year == now.year &&
-             event.dateTime.month == now.month &&
-             event.dateTime.day == now.day;
-    }).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    return _getEventsForDate(now);
   }
   
   List<EventModel> get selectedDateEvents {
-    return _eventList.where((event) {
-      return event.dateTime.year == _selectedDate.year &&
-             event.dateTime.month == _selectedDate.month &&
-             event.dateTime.day == _selectedDate.day;
-    }).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    return _getEventsForDate(_selectedDate);
   }
   
   List<EventModel> get tomorrowEvents {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
-    return _eventList.where((event) {
-      return event.dateTime.year == tomorrow.year &&
-             event.dateTime.month == tomorrow.month &&
-             event.dateTime.day == tomorrow.day;
-    }).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    return _getEventsForDate(tomorrow);
   }
   
   // Get all dates that have events (for calendar marking)
+  // This includes recurring event dates (but excludes daily recurrence)
   Set<DateTime> get eventDates {
-    return _eventList.map((event) {
-      return DateTime(
-        event.dateTime.year,
-        event.dateTime.month,
-        event.dateTime.day,
-      );
-    }).toSet();
+    final dates = <DateTime>{};
+    final now = DateTime.now();
+    final maxDate = now.add(const Duration(days: 365));
+    
+    for (final event in _eventList) {
+      // Skip daily recurrence events to avoid highlighting every day
+      if (event.recurrence == Recurrence.daily) {
+        continue;
+      }
+      
+      final recurringDates = _getRecurringDates(event, maxDays: 365);
+      for (final date in recurringDates) {
+        if (date.isBefore(maxDate)) {
+          dates.add(DateTime(date.year, date.month, date.day));
+        }
+      }
+    }
+    
+    return dates;
   }
   
   EventProvider() {
@@ -58,6 +59,47 @@ class EventProvider extends ChangeNotifier {
   void setSelectedDate(DateTime date) {
     _selectedDate = date;
     notifyListeners();
+  }
+  
+  // Get events for a specific date (including recurring events)
+  List<EventModel> _getEventsForDate(DateTime date) {
+    final events = <EventModel>[];
+    
+    for (final event in _eventList) {
+      if (_eventOccursOnDate(event, date)) {
+        events.add(event);
+      }
+    }
+    
+    events.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    return events;
+  }
+  
+  // Check if an event occurs on a specific date
+  bool _eventOccursOnDate(EventModel event, DateTime date) {
+    final eventDate = event.dateTime;
+    final checkDate = DateTime(date.year, date.month, date.day);
+    final eventStartDate = DateTime(eventDate.year, eventDate.month, eventDate.day);
+    
+    // If the date is before the event starts, return false
+    if (checkDate.isBefore(eventStartDate)) {
+      return false;
+    }
+    
+    switch (event.recurrence) {
+      case Recurrence.once:
+        return checkDate.isAtSameMomentAs(eventStartDate);
+        
+      case Recurrence.daily:
+        // Occurs every day from the start date onwards
+        return checkDate.isAtSameMomentAs(eventStartDate) || checkDate.isAfter(eventStartDate);
+        
+      case Recurrence.yearly:
+        // Occurs every year on the same month and day
+        return checkDate.month == eventDate.month && 
+               checkDate.day == eventDate.day &&
+               checkDate.year >= eventDate.year;
+    }
   }
   
   Future<void> loadEventData() async {
@@ -75,13 +117,20 @@ class EventProvider extends ChangeNotifier {
   
   Future<void> addEvent(EventModel event, {bool enableNotifications = true}) async {
     try {
-      await HiveService.saveData('eventBox', event.id, event.toJson());
-      _eventList.add(event);
+
+      EventModel eventToSave = event;
+      if (event.reminderMinutes.isEmpty) {
+        eventToSave = event.copyWith(
+          reminderMinutes: ['60'],
+        );
+      }
+      await HiveService.saveData('eventBox', eventToSave.id, event.toJson());
+      _eventList.add(eventToSave);
       _eventList.sort((a, b) => a.dateTime.compareTo(b.dateTime));
       
       // Schedule notifications for reminders
-      if (enableNotifications && event.reminderMinutes.isNotEmpty) {
-        await _scheduleEventReminders(event);
+      if (enableNotifications && eventToSave.reminderMinutes.isNotEmpty) {
+        await _scheduleEventReminders(eventToSave);
       }
       
       notifyListeners();
@@ -132,6 +181,7 @@ class EventProvider extends ChangeNotifier {
     }
   }
 
+  // Generate list of future dates when this event will occur
   List<DateTime> _getRecurringDates(EventModel event, {int maxDays = 365}) {
     final List<DateTime> dates = [];
     final now = DateTime.now();
@@ -140,23 +190,38 @@ class EventProvider extends ChangeNotifier {
     DateTime current = event.dateTime;
 
     while (current.isBefore(endDate)) {
-      if (current.isAfter(now)) {
+      if (current.isAfter(now) || _isSameDay(current, now)) {
         dates.add(current);
       }
 
       switch (event.recurrence) {
         case Recurrence.once:
-          return dates; // only one
+          return dates; // only one occurrence
+          
         case Recurrence.daily:
           current = current.add(const Duration(days: 1));
           break;
-        case Recurrence.weekly:
-          current = current.add(const Duration(days: 7));
+          
+        case Recurrence.yearly:
+          // Add one year, handling leap years properly
+          current = DateTime(
+            current.year + 1,
+            current.month,
+            current.day,
+            current.hour,
+            current.minute,
+          );
           break;
       }
     }
 
     return dates;
+  }
+  
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+           date1.month == date2.month &&
+           date1.day == date2.day;
   }
   
   // Schedule all reminder notifications for an event
@@ -174,13 +239,13 @@ class EventProvider extends ChangeNotifier {
         if (!fireAt.isAfter(DateTime.now())) continue;
 
         // Unique ID: eventId_occurrenceIndex_reminderIndex
-        final reminderId = '${event.id}_occ_$remIdx';
+        final reminderId = '${event.id}_occ${dateIdx}_rem$remIdx';
         final reminderText = _humanReminderText(minutes);
 
         await NotificationService.scheduleReminder(
           reminderId: reminderId,
-          title: 'Event Reminder',
-          body: '${event.title} – $reminderText',
+          title: event.title,
+          body: reminderText,
           fireAt: fireAt,
         );
       }
@@ -201,22 +266,14 @@ class EventProvider extends ChangeNotifier {
   Future<void> _cancelEventReminders(String eventId) async {
     final event = getEventById(eventId);
     if (event != null) {
-      for (int i = 0; i < event.reminderMinutes.length; i++) {
-        final reminderId = '${event.id}_reminder_$i';
-        await NotificationService.cancelNotification(reminderId);
+      // Cancel multiple occurrences
+      final futureDates = _getRecurringDates(event);
+      for (int dateIdx = 0; dateIdx < futureDates.length; dateIdx++) {
+        for (int remIdx = 0; remIdx < event.reminderMinutes.length; remIdx++) {
+          final reminderId = '${event.id}_occ${dateIdx}_rem$remIdx';
+          await NotificationService.cancelNotification(reminderId);
+        }
       }
-    }
-  }
-  
-  String _getReminderText(int minutes) {
-    if (minutes < 60) {
-      return '$minutes minutes before';
-    } else if (minutes < 1440) {
-      final hours = minutes ~/ 60;
-      return '$hours hour${hours > 1 ? 's' : ''} before';
-    } else {
-      final days = minutes ~/ 1440;
-      return '$days day${days > 1 ? 's' : ''} before';
     }
   }
 }

@@ -6,12 +6,13 @@ import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/data/models/event_model.dart';
 import 'package:life_hub/providers/event_provider.dart';
 import 'package:life_hub/providers/settings_provider.dart';
-import 'package:life_hub/data/local/file_service.dart';
+import 'package:life_hub/data/service/file_service.dart';
 
 class CreateEventScreen extends StatefulWidget {
   final String? eventId;
+  final DateTime? preSelectedDate;
 
-  const CreateEventScreen({super.key, this.eventId});
+  const CreateEventScreen({super.key, this.eventId, this.preSelectedDate});
 
   @override
   State<CreateEventScreen> createState() => _CreateEventScreenState();
@@ -32,7 +33,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   @override
   void initState() {
-    super.initState();
+    super.initState();   
+    
+    
     if (widget.eventId != null) {
       _loadExistingEvent();
     }
@@ -167,6 +170,100 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               fontWeight: FontWeight.w700,
             ),
           ),
+          const Spacer(),
+          // Delete button (only in edit mode)
+          if (_isEditMode)
+            GestureDetector(
+              onTap: _handleDelete,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.highPriority.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: AppColors.highPriority,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _handleDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? AppColors.darkCard
+            : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Delete Event',
+          style: TextStyle(
+            color: AppColors.getTextColor(context),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete this event?',
+          style: TextStyle(
+            color: AppColors.getSubtitleColor(context),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: AppColors.getSubtitleColor(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+              
+              final provider = Provider.of<EventProvider>(context, listen: false);
+              await provider.deleteEvent(widget.eventId!);
+              
+              if (mounted) {
+                Navigator.pop(context); // Close edit screen
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.delete, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text('Event deleted'),
+                      ],
+                    ),
+                    backgroundColor: AppColors.highPriority,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                color: AppColors.highPriority,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -284,8 +381,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Widget _buildDateTimePicker(BuildContext context, bool isDark) {
+    final hasPreSelectedDate = widget.preSelectedDate != null && _eventDateTime == null;
+    
     return GestureDetector(
-      onTap: () => _selectDateTime(context),
+      onTap: () {
+        if (hasPreSelectedDate) {
+          // If we have a pre-selected date but no time yet, just ask for time
+          _selectTimeOnly(context, widget.preSelectedDate!);
+        } else {
+          // Otherwise, show full date & time picker
+          _selectDateTime(context);
+        }
+      },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -300,43 +407,90 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Row(
+        child: Column(
           children: [
-            Icon(
-              Icons.calendar_today,
-              color: _eventDateTime == null
-                  ? AppColors.highPriority
-                  : AppColors.blueGradientStart,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _eventDateTime == null
-                    ? 'Select date & time *'
-                    : DateFormat('MMM dd, yyyy - hh:mm a').format(_eventDateTime!),
-                style: TextStyle(
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
                   color: _eventDateTime == null
                       ? AppColors.highPriority
-                      : AppColors.getTextColor(context),
-                  fontSize: 14,
-                  fontWeight: _eventDateTime == null ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ),
-            if (_eventDateTime != null)
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _eventDateTime = null;
-                  });
-                },
-                child: const Icon(
-                  Icons.close,
-                  color: AppColors.highPriority,
+                      : AppColors.blueGradientStart,
                   size: 20,
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_eventDateTime == null && hasPreSelectedDate) ...[
+                        // Show pre-selected date
+                        Text(
+                          DateFormat('MMM dd, yyyy').format(widget.preSelectedDate!),
+                          style: TextStyle(
+                            color: AppColors.getTextColor(context),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              color: AppColors.highPriority,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Tap to select time *',
+                              style: TextStyle(
+                                color: AppColors.highPriority,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else if (_eventDateTime != null) ...[
+                        // Show full date & time
+                        Text(
+                          DateFormat('MMM dd, yyyy - hh:mm a').format(_eventDateTime!),
+                          style: TextStyle(
+                            color: AppColors.getTextColor(context),
+                            fontSize: 14,
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                      ] else ...[
+                        // No date selected
+                        Text(
+                          'Select date & time *',
+                          style: TextStyle(
+                            color: AppColors.highPriority,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (_eventDateTime != null)
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _eventDateTime = null;
+                      });
+                    },
+                    child: const Icon(
+                      Icons.close,
+                      color: AppColors.highPriority,
+                      size: 20,
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -355,7 +509,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildRecurrenceChip('Weekly', Recurrence.weekly, Icons.calendar_today, isDark),
+          child: _buildRecurrenceChip('Yearly', Recurrence.yearly, Icons.calendar_month, isDark),
         ),
       ],
     );
@@ -363,6 +517,20 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
   Widget _buildRecurrenceChip(String label, Recurrence value, IconData icon, bool isDark) {
     final isSelected = _selectedRecurrence == value;
+    
+    // Different gradient colors for each recurrence type
+    List<Color> gradientColors;
+    switch (value) {
+      case Recurrence.once:
+        gradientColors = [AppColors.purpleGradientStart, AppColors.purpleGradientEnd];
+        break;
+      case Recurrence.daily:
+        gradientColors = [AppColors.greenGradientStart, AppColors.greenGradientEnd];
+        break;
+      case Recurrence.yearly:
+        gradientColors = [const Color(0xFFFF6B6B), const Color(0xFFFF8E53)]; // Orange/Red
+        break;
+    }
 
     return GestureDetector(
       onTap: () {
@@ -374,12 +542,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           gradient: isSelected
-              ? const LinearGradient(
-                  colors: [
-                    AppColors.blueGradientStart,
-                    AppColors.blueGradientEnd,
-                  ],
-                )
+              ? LinearGradient(colors: gradientColors)
               : null,
           color: isSelected ? null : (isDark ? Colors.white.withOpacity(0.05) : Colors.white),
           border: Border.all(
@@ -681,7 +844,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           GestureDetector(
             onTap: _pickImage,
             child: Container(
-              height: 200,
+              height: 100,
               decoration: BoxDecoration(
                 color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
                 border: Border.all(
@@ -867,6 +1030,37 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           );
         });
       }
+    }
+  }
+
+  // New method to select only time when date is pre-selected
+  Future<void> _selectTimeOnly(BuildContext context, DateTime preSelectedDate) async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: AppColors.blueGradientStart,
+              surface: AppColors.darkCard,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (time != null && mounted) {
+      setState(() {
+        _eventDateTime = DateTime(
+          preSelectedDate.year,
+          preSelectedDate.month,
+          preSelectedDate.day,
+          time.hour,
+          time.minute,
+        );
+      });
     }
   }
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/providers/profile_provider.dart';
-import 'package:life_hub/data/local/file_service.dart';
+import 'package:life_hub/data/service/file_service.dart';
 import 'package:life_hub/features/settings/widgets/profile_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {

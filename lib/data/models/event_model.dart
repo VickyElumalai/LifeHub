@@ -68,7 +68,7 @@ class EventModel {
   
 }
 
-enum Recurrence { once, daily, weekly }
+enum Recurrence { once, daily,  yearly }
 extension RecurrenceExtension on String {
   Recurrence get toRecurrence {
     return Recurrence.values.firstWhere(

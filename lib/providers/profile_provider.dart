@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:life_hub/data/models/user_profile_model.dart';
-import 'package:life_hub/data/local/hive_service.dart';
+import 'package:life_hub/data/service/hive_service.dart';
 
 class ProfileProvider extends ChangeNotifier {
   UserProfileModel? _userProfile;

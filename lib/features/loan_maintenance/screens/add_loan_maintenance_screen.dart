@@ -4,12 +4,12 @@ import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/data/models/loan_maintenance_model.dart';
 import 'package:life_hub/providers/loan_maintenance_provider.dart';
 import 'package:life_hub/providers/settings_provider.dart';
-import 'package:life_hub/data/local/file_service.dart';
+import 'package:life_hub/data/service/file_service.dart';
 import 'package:intl/intl.dart';
 
 class AddLoanMaintenanceScreen extends StatefulWidget {
   final String? itemId;
-  final String? initialType; // 'loan' or 'maintenance'
+  final String? initialType;
 
   const AddLoanMaintenanceScreen({
     super.key,
@@ -24,27 +24,23 @@ class AddLoanMaintenanceScreen extends StatefulWidget {
 
 class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _loanProviderController = TextEditingController();
-  final TextEditingController _accountNumberController = TextEditingController();
   final TextEditingController _totalAmountController = TextEditingController();
   final TextEditingController _totalMonthsController = TextEditingController();
-  final TextEditingController _paymentDayController = TextEditingController();
-  final TextEditingController _interestRateController = TextEditingController();
+  final TextEditingController _completedMonthsController = TextEditingController();
+  final TextEditingController _alreadyPaidController = TextEditingController();
   final TextEditingController _reminderDaysController = TextEditingController();
   final TextEditingController _customDaysController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   String _selectedType = 'loan';
-  String _selectedCategory = 'bike';
-  String? _selectedMaintenanceType;
   String _selectedRecurrence = 'monthly';
-  DateTime? _loanStartDate;
-  DateTime? _nextDueDate;
-  DateTime? _lastDoneDate;
+  int? _selectedDueDay;
+  DateTime? _selectedMaintenanceDueDate;
   List<String> _attachmentPaths = [];
   bool _isLoading = false;
   bool _isEditMode = false;
+  bool _isExistingLoan = false;
   LoanMaintenanceModel? _existingItem;
 
   @override
@@ -52,24 +48,17 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
     super.initState();
     if (widget.initialType != null) {
       _selectedType = widget.initialType!;
-      _updateCategoryForType();
     }
     if (widget.itemId != null) {
       _loadExistingItem();
     }
-  }
-
-  void _updateCategoryForType() {
-    if (_selectedType == 'loan') {
-      _selectedCategory = 'bike';
-    } else {
-      _selectedCategory = 'vehicle';
-    }
+    _reminderDaysController.text = '3';
+    _completedMonthsController.text = '0';
+    _alreadyPaidController.text = '0';
   }
 
   void _loadExistingItem() {
-    final provider =
-        Provider.of<LoanMaintenanceProvider>(context, listen: false);
+    final provider = Provider.of<LoanMaintenanceProvider>(context, listen: false);
     final item = provider.getItemById(widget.itemId!);
 
     if (item != null) {
@@ -78,34 +67,28 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
         _existingItem = item;
         _selectedType = item.type;
         _titleController.text = item.title;
-        _selectedCategory = item.category;
         _notesController.text = item.notes ?? '';
         _attachmentPaths = List.from(item.attachmentPaths);
-        _nextDueDate = item.nextDueDate;
+        _reminderDaysController.text = item.reminderDays.toString();
 
         if (item.isLoan) {
-          _loanProviderController.text = item.loanProvider ?? '';
-          _accountNumberController.text = item.accountNumber ?? '';
           if (item.totalAmount != null) {
             _totalAmountController.text = item.totalAmount.toString();
           }
           if (item.totalMonths != null) {
             _totalMonthsController.text = item.totalMonths.toString();
           }
-          if (item.paymentDay != null) {
-            _paymentDayController.text = item.paymentDay.toString();
+          _completedMonthsController.text = item.completedMonths.toString();
+          _alreadyPaidController.text = item.totalPaid.toStringAsFixed(0);
+          _selectedDueDay = item.paymentDay;
+          
+          if (item.completedMonths > 0) {
+            _isExistingLoan = true;
           }
-          if (item.interestRate != null) {
-            _interestRateController.text = item.interestRate.toString();
-          }
-          _loanStartDate = item.loanStartDate;
         } else {
-          _selectedMaintenanceType = item.maintenanceType;
+          // CHANGED: For maintenance, use full due date
           _selectedRecurrence = item.recurrence ?? 'monthly';
-          _lastDoneDate = item.lastDoneDate;
-          if (item.reminderDays != null) {
-            _reminderDaysController.text = item.reminderDays.toString();
-          }
+          _selectedMaintenanceDueDate = item.nextDueDate; // Store full date
           if (item.customRecurrenceDays != null) {
             _customDaysController.text = item.customRecurrenceDays.toString();
           }
@@ -117,12 +100,10 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
   @override
   void dispose() {
     _titleController.dispose();
-    _loanProviderController.dispose();
-    _accountNumberController.dispose();
     _totalAmountController.dispose();
     _totalMonthsController.dispose();
-    _paymentDayController.dispose();
-    _interestRateController.dispose();
+    _completedMonthsController.dispose();
+    _alreadyPaidController.dispose();
     _reminderDaysController.dispose();
     _customDaysController.dispose();
     _notesController.dispose();
@@ -152,10 +133,6 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
                         _buildTypeSelector(isDark),
                         const SizedBox(height: 20),
                       ],
-                      _buildSectionLabel(context, 'Category *'),
-                      const SizedBox(height: 8),
-                      _buildCategorySelector(isDark),
-                      const SizedBox(height: 20),
                       _buildSectionLabel(context, 'Title *'),
                       const SizedBox(height: 8),
                       _buildTextField(
@@ -177,6 +154,25 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
                       ] else ...[
                         ..._buildMaintenanceFields(isDark),
                       ],
+                      const SizedBox(height: 20),
+                      _buildSectionLabel(
+                          context, 'Reminder (Days Before Due Date) *'),
+                      const SizedBox(height: 8),
+                      _buildTextField(
+                        controller: _reminderDaysController,
+                        hint: 'e.g., 3, 7, 15',
+                        isDark: isDark,
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter reminder days';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'Please enter valid number';
+                          }
+                          return null;
+                        },
+                      ),
                       const SizedBox(height: 20),
                       _buildSectionLabel(context, 'Notes (Optional)'),
                       const SizedBox(height: 8),
@@ -256,8 +252,8 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
                 ),
                 Text(
                   _selectedType == 'loan'
-                      ? 'Track your EMIs and payments'
-                      : 'Schedule regular maintenance',
+                      ? 'New or existing loan'
+                      : 'Schedule maintenance',
                   style: TextStyle(
                     color: AppColors.getSubtitleColor(context),
                     fontSize: 12,
@@ -286,11 +282,11 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
     return Row(
       children: [
         Expanded(
-          child: _buildTypeChip('💰 Loan', 'loan', isDark),
+          child: _buildTypeChip('Loan', 'loan', isDark),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _buildTypeChip('🔧 Maintenance', 'maintenance', isDark),
+          child: _buildTypeChip('Maintenance', 'maintenance', isDark),
         ),
       ],
     );
@@ -303,7 +299,6 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
       onTap: () {
         setState(() {
           _selectedType = value;
-          _updateCategoryForType();
         });
       },
       child: Container(
@@ -345,80 +340,8 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
     );
   }
 
-  Widget _buildCategorySelector(bool isDark) {
-    final categories = _selectedType == 'loan'
-        ? LoanMaintenanceConfig.loanCategories
-        : LoanMaintenanceConfig.maintenanceCategories;
-
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: categories.entries.map((entry) {
-        final isSelected = _selectedCategory == entry.key;
-        final config = entry.value;
-
-        return GestureDetector(
-          onTap: () => setState(() => _selectedCategory = entry.key),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Color(config['color'] as int).withOpacity(0.2)
-                  : (isDark
-                      ? Colors.white.withOpacity(0.05)
-                      : Colors.white),
-              border: Border.all(
-                color: isSelected
-                    ? Color(config['color'] as int)
-                    : (isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.black.withOpacity(0.1)),
-                width: isSelected ? 2 : 1,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  config['icon'] as String,
-                  style: const TextStyle(fontSize: 20),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  config['label'] as String,
-                  style: TextStyle(
-                    color: isSelected
-                        ? Color(config['color'] as int)
-                        : AppColors.getTextColor(context),
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   List<Widget> _buildLoanFields(bool isDark) {
     return [
-      _buildSectionLabel(context, 'Loan Provider/Bank *'),
-      const SizedBox(height: 8),
-      _buildTextField(
-        controller: _loanProviderController,
-        hint: 'e.g., HDFC Bank, Bajaj Finance',
-        isDark: isDark,
-        validator: (value) {
-          if (value == null || value.trim().isEmpty) {
-            return 'Please enter loan provider';
-          }
-          return null;
-        },
-      ),
-      const SizedBox(height: 20),
       _buildSectionLabel(context, 'Total Loan Amount *'),
       const SizedBox(height: 8),
       _buildTextField(
@@ -438,172 +361,362 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
         },
       ),
       const SizedBox(height: 20),
-      Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionLabel(context, 'Total Months *'),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: _totalMonthsController,
-                  hint: 'e.g., 24',
-                  isDark: isDark,
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Required';
-                    }
-                    if (int.tryParse(value) == null) {
-                      return 'Invalid';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionLabel(context, 'Payment Day'),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: _paymentDayController,
-                  hint: 'Day 1-31',
-                  isDark: isDark,
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value != null && value.isNotEmpty) {
-                      final day = int.tryParse(value);
-                      if (day == null || day < 1 || day > 31) {
-                        return 'Invalid day';
-                      }
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 20),
-      _buildSectionLabel(context, 'Loan Start Date'),
+      _buildSectionLabel(context, 'Total Months *'),
       const SizedBox(height: 8),
-      _buildDatePicker(
-        context,
-        isDark,
-        _loanStartDate,
-        'Select loan start date',
-        (date) => setState(() => _loanStartDate = date),
-        canClear: true,
+      _buildTextField(
+        controller: _totalMonthsController,
+        hint: 'e.g., 24, 36, 48',
+        isDark: isDark,
+        keyboardType: TextInputType.number,
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) {
+            return 'Please enter total months';
+          }
+          if (int.tryParse(value) == null) {
+            return 'Please enter valid number';
+          }
+          return null;
+        },
       ),
       const SizedBox(height: 20),
-      _buildSectionLabel(context, 'Next Payment Due Date *'),
+      
+      // SIMPLIFIED: Single Due Day Selector
+      _buildSectionLabel(context, 'Monthly Due Date *'),
       const SizedBox(height: 8),
-      _buildDatePicker(
-        context,
-        isDark,
-        _nextDueDate,
-        'Select next payment date',
-        (date) => setState(() => _nextDueDate = date),
+      _buildDueDaySelector(isDark),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.blueGradientStart.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.info_outline,
+              color: AppColors.blueGradientStart,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Payment will be due on this day every month (e.g., 25th of each month)',
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 20),
-      Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionLabel(context, 'Interest Rate %'),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: _interestRateController,
-                  hint: 'e.g., 10.5',
-                  isDark: isDark,
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionLabel(context, 'Account Number'),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: _accountNumberController,
-                  hint: 'Optional',
-                  isDark: isDark,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      
+      _buildExistingLoanSection(isDark),
     ];
   }
 
-  List<Widget> _buildMaintenanceFields(bool isDark) {
-    final maintenanceTypes =
-        LoanMaintenanceConfig.maintenanceCategories[_selectedCategory]
-            ?['types'] as List<String>?;
-
-    return [
-      if (maintenanceTypes != null) ...[
-        _buildSectionLabel(context, 'Maintenance Type'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: maintenanceTypes.map((type) {
-            final isSelected = _selectedMaintenanceType == type;
-            return ChoiceChip(
-              label: Text(type),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  _selectedMaintenanceType = selected ? type : null;
-                });
-              },
-              selectedColor: AppColors.blueGradientStart.withOpacity(0.3),
-              labelStyle: TextStyle(
-                color: isSelected
-                    ? AppColors.blueGradientStart
-                    : AppColors.getTextColor(context),
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              ),
+  Widget _buildDueDaySelector(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        border: Border.all(
+          color: _selectedDueDay == null
+              ? AppColors.highPriority.withOpacity(0.5)
+              : (isDark
+                  ? Colors.white.withOpacity(0.1)
+                  : Colors.black.withOpacity(0.1)),
+          width: _selectedDueDay == null ? 2 : 1,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedDueDay,
+          hint: Text(
+            'Select day of month',
+            style: TextStyle(
+              color: AppColors.highPriority,
+              fontSize: 14,
+            ),
+          ),
+          isExpanded: true,
+          dropdownColor: isDark ? AppColors.darkCard : Colors.white,
+          style: TextStyle(
+            color: AppColors.getTextColor(context),
+            fontSize: 14,
+          ),
+          icon: Icon(
+            Icons.calendar_today,
+            color: _selectedDueDay == null 
+                ? AppColors.highPriority 
+                : AppColors.pinkGradientStart,
+          ),
+          items: List.generate(31, (index) => index + 1).map((day) {
+            return DropdownMenuItem<int>(
+              value: day,
+              child: Text('Day $day of every month'),
             );
           }).toList(),
+          onChanged: (value) {
+            setState(() => _selectedDueDay = value);
+          },
         ),
-        const SizedBox(height: 20),
-      ],
-      _buildSectionLabel(context, 'Next Due Date *'),
-      const SizedBox(height: 8),
-      _buildDatePicker(
-        context,
-        isDark,
-        _nextDueDate,
-        'Select next due date',
-        (date) => setState(() => _nextDueDate = date),
       ),
-      const SizedBox(height: 20),
-      _buildSectionLabel(context, 'Last Done Date (Optional)'),
+    );
+  }
+
+  Widget _buildExistingLoanSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _isExistingLoan = !_isExistingLoan;
+              if (!_isExistingLoan) {
+                _completedMonthsController.text = '0';
+                _alreadyPaidController.text = '0';
+              }
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.purpleGradientStart.withOpacity(_isExistingLoan ? 0.2 : 0.1),
+                  AppColors.purpleGradientEnd.withOpacity(_isExistingLoan ? 0.2 : 0.1),
+                ],
+              ),
+              border: Border.all(
+                color: AppColors.purpleGradientStart.withOpacity(_isExistingLoan ? 0.5 : 0.3),
+                width: _isExistingLoan ? 2 : 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _isExistingLoan ? Icons.check_circle : Icons.info_outline,
+                  color: AppColors.purpleGradientStart,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Already have an ongoing loan?',
+                        style: TextStyle(
+                          color: AppColors.getTextColor(context),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _isExistingLoan 
+                            ? 'Enter your current progress below'
+                            : 'Tap to enter completed months & paid amount',
+                        style: TextStyle(
+                          color: AppColors.getSubtitleColor(context),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  _isExistingLoan ? Icons.expand_less : Icons.expand_more,
+                  color: AppColors.purpleGradientStart,
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        if (_isExistingLoan) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark 
+                  ? Colors.white.withOpacity(0.03) 
+                  : Colors.black.withOpacity(0.02),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.1),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: AppColors.blueGradientStart,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Current Loan Progress',
+                      style: TextStyle(
+                        color: AppColors.blueGradientStart,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Months Completed',
+                            style: TextStyle(
+                              color: AppColors.getSubtitleColor(context),
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildTextField(
+                            controller: _completedMonthsController,
+                            hint: '0',
+                            isDark: isDark,
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null && value.isNotEmpty) {
+                                final completed = int.tryParse(value);
+                                final total = int.tryParse(_totalMonthsController.text);
+                                if (completed == null) {
+                                  return 'Invalid';
+                                }
+                                if (total != null && completed > total) {
+                                  return 'Cannot exceed total';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Amount Paid So Far',
+                            style: TextStyle(
+                              color: AppColors.getSubtitleColor(context),
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildTextField(
+                            controller: _alreadyPaidController,
+                            hint: '0',
+                            isDark: isDark,
+                            keyboardType: TextInputType.number,
+                            prefixText: '₹ ',
+                            validator: (value) {
+                              if (value != null && value.isNotEmpty) {
+                                final paid = double.tryParse(value);
+                                final total = double.tryParse(_totalAmountController.text);
+                                if (paid == null) {
+                                  return 'Invalid';
+                                }
+                                if (total != null && paid > total) {
+                                  return 'Cannot exceed total';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.greenGradientStart.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.tips_and_updates,
+                        color: AppColors.greenGradientStart,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Tip: Leave as 0 for brand new loans',
+                          style: TextStyle(
+                            color: AppColors.getTextColor(context),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _buildMaintenanceFields(bool isDark) {
+    return [
+      _buildSectionLabel(context, 'Due Date *'),
       const SizedBox(height: 8),
-      _buildDatePicker(
-        context,
-        isDark,
-        _lastDoneDate,
-        'Select last done date',
-        (date) => setState(() => _lastDoneDate = date),
-        canClear: true,
+      _buildMaintenanceDatePicker(isDark),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.blueGradientStart.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.info_outline,
+              color: AppColors.blueGradientStart,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Select when this maintenance is due. You\'ll be notified based on recurrence.',
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 20),
       _buildSectionLabel(context, 'Recurrence'),
@@ -625,17 +738,87 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
           },
         ),
       ],
-      const SizedBox(height: 20),
-      _buildSectionLabel(context, 'Reminder (Days Before)'),
-      const SizedBox(height: 8),
-      _buildTextField(
-        controller: _reminderDaysController,
-        hint: 'e.g., 1, 3, 7 (default: 1)',
-        isDark: isDark,
-        keyboardType: TextInputType.number,
-      ),
     ];
   }
+
+  Widget _buildMaintenanceDatePicker(bool isDark) {
+    return GestureDetector(
+      onTap: () async {
+        final now = DateTime.now();
+        final pickedDate = await showDatePicker(
+          context: context,
+          initialDate: _selectedMaintenanceDueDate ?? now,
+          firstDate: now,
+          lastDate: DateTime(now.year + 5),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.light(
+                  primary: AppColors.pinkGradientStart,
+                  onPrimary: Colors.white,
+                  surface: isDark ? AppColors.darkCard : Colors.white,
+                  onSurface: AppColors.getTextColor(context),
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+
+        if (pickedDate != null) {
+          setState(() => _selectedMaintenanceDueDate = pickedDate);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+          border: Border.all(
+            color: _selectedMaintenanceDueDate == null
+                ? AppColors.highPriority.withOpacity(0.5)
+                : (isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.1)),
+            width: _selectedMaintenanceDueDate == null ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today,
+              color: _selectedMaintenanceDueDate == null
+                  ? AppColors.highPriority
+                  : AppColors.pinkGradientStart,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedMaintenanceDueDate == null
+                    ? 'Select maintenance due date'
+                    : DateFormat('EEEE, MMM dd, yyyy').format(_selectedMaintenanceDueDate!),
+                style: TextStyle(
+                  color: _selectedMaintenanceDueDate == null
+                      ? AppColors.highPriority
+                      : AppColors.getTextColor(context),
+                  fontSize: 14,
+                  fontWeight: _selectedMaintenanceDueDate == null
+                      ? FontWeight.w600
+                      : FontWeight.w500,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_drop_down,
+              color: AppColors.getSubtitleColor(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -697,62 +880,6 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
           borderSide: const BorderSide(color: AppColors.highPriority),
         ),
         contentPadding: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
-  Widget _buildDatePicker(
-    BuildContext context,
-    bool isDark,
-    DateTime? date,
-    String hint,
-    Function(DateTime?) onDateSelected, {
-    bool canClear = false,
-  }) {
-    return GestureDetector(
-      onTap: () => _selectDate(context, date, onDateSelected),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.1),
-            width: 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.calendar_today,
-              color: AppColors.pinkGradientStart,
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                date == null ? hint : DateFormat('MMM dd, yyyy').format(date),
-                style: TextStyle(
-                  color: date == null
-                      ? AppColors.getSubtitleColor(context)
-                      : AppColors.getTextColor(context),
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            if (date != null && canClear)
-              GestureDetector(
-                onTap: () => onDateSelected(null),
-                child: const Icon(
-                  Icons.close,
-                  color: AppColors.highPriority,
-                  size: 20,
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -979,34 +1106,6 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
     );
   }
 
-  Future<void> _selectDate(
-    BuildContext context,
-    DateTime? currentDate,
-    Function(DateTime?) onDateSelected,
-  ) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: currentDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: AppColors.pinkGradientStart,
-              surface: AppColors.darkCard,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (date != null) {
-      onDateSelected(date);
-    }
-  }
-
   Future<void> _pickFile() async {
     final path = await FileService.pickFile();
     if (path != null) {
@@ -1016,19 +1115,85 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
     }
   }
 
+  // Calculate next due date based on payment day
+  DateTime _calculateNextDueDate(int dueDay, int completedMonths) {
+    final now = DateTime.now();
+    
+    // Start from current month
+    int targetMonth = now.month + completedMonths;
+    int targetYear = now.year;
+    
+    // Handle year overflow
+    while (targetMonth > 12) {
+      targetMonth -= 12;
+      targetYear++;
+    }
+    
+    // Handle day overflow (e.g., Feb 30 -> Feb 28/29)
+    int actualDay = dueDay;
+    final lastDayOfMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+    if (dueDay > lastDayOfMonth) {
+      actualDay = lastDayOfMonth;
+    }
+    
+    var nextDue = DateTime(targetYear, targetMonth, actualDay);
+    
+    // If the date is in the past, move to next month
+    if (nextDue.isBefore(now) || nextDue.isAtSameMomentAs(now)) {
+      targetMonth++;
+      if (targetMonth > 12) {
+        targetMonth = 1;
+        targetYear++;
+      }
+      
+      final lastDayOfNextMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+      if (dueDay > lastDayOfNextMonth) {
+        actualDay = lastDayOfNextMonth;
+      } else {
+        actualDay = dueDay;
+      }
+      
+      nextDue = DateTime(targetYear, targetMonth, actualDay);
+    }
+    
+    return nextDue;
+  }
+
   Future<void> _saveItem() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_nextDueDate == null) {
+    // Validation for loans
+    if (_selectedType == 'loan' && _selectedDueDay == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: const [
               Icon(Icons.error_outline, color: Colors.white),
               SizedBox(width: 12),
-              Text('Please select next due date'),
+              Text('Please select due day for loan'),
+            ],
+          ),
+          backgroundColor: AppColors.highPriority,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Validation for maintenance
+    if (_selectedType == 'maintenance' && _selectedMaintenanceDueDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Please select due date for maintenance'),
             ],
           ),
           backgroundColor: AppColors.highPriority,
@@ -1044,10 +1209,41 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final provider =
-          Provider.of<LoanMaintenanceProvider>(context, listen: false);
-      final settingsProvider =
-          Provider.of<SettingsProvider>(context, listen: false);
+      final provider = Provider.of<LoanMaintenanceProvider>(context, listen: false);
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+
+      final completedMonths = _selectedType == 'loan' && _completedMonthsController.text.isNotEmpty
+          ? int.parse(_completedMonthsController.text)
+          : 0;
+      
+      final alreadyPaid = _selectedType == 'loan' && _alreadyPaidController.text.isNotEmpty
+          ? double.parse(_alreadyPaidController.text)
+          : 0.0;
+
+      // Calculate next due date
+      DateTime nextDueDate;
+      if (_selectedType == 'loan') {
+        nextDueDate = _calculateNextDueDate(_selectedDueDay!, completedMonths);
+      } else {
+        // For maintenance, use the selected date directly
+        nextDueDate = _selectedMaintenanceDueDate!;
+      }
+
+      List<PaymentRecord> paymentHistory = [];
+      if (_isEditMode) {
+        paymentHistory = _existingItem!.paymentHistory;
+      } else if (_selectedType == 'loan' && completedMonths > 0 && alreadyPaid > 0) {
+        paymentHistory.add(
+          PaymentRecord(
+            id: 'initial_payment_${DateTime.now().millisecondsSinceEpoch}',
+            amount: alreadyPaid,
+            paidDate: DateTime.now(),
+            monthNumber: completedMonths,
+            isPaid: true,
+            notes: 'Initial payment history (Months 1-$completedMonths)',
+          ),
+        );
+      }
 
       final item = LoanMaintenanceModel(
         id: _isEditMode
@@ -1055,57 +1251,27 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
             : '${_selectedType}_${DateTime.now().millisecondsSinceEpoch}',
         title: _titleController.text.trim(),
         type: _selectedType,
-        category: _selectedCategory,
         status: _isEditMode ? _existingItem!.status : 'active',
         createdAt: _isEditMode ? _existingItem!.createdAt : DateTime.now(),
-        nextDueDate: _nextDueDate!,
+        nextDueDate: nextDueDate,
+        reminderDays: int.parse(_reminderDaysController.text),
         attachmentPaths: _attachmentPaths,
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
-        // Loan-specific fields
-        loanProvider: _selectedType == 'loan'
-            ? _loanProviderController.text.trim()
-            : null,
-        accountNumber: _selectedType == 'loan' &&
-                _accountNumberController.text.isNotEmpty
-            ? _accountNumberController.text.trim()
-            : null,
-        totalAmount: _selectedType == 'loan' &&
-                _totalAmountController.text.isNotEmpty
+        paymentDay: _selectedType == 'loan' ? _selectedDueDay : null,
+        totalAmount: _selectedType == 'loan' && _totalAmountController.text.isNotEmpty
             ? double.tryParse(_totalAmountController.text)
             : null,
-        totalMonths: _selectedType == 'loan' &&
-                _totalMonthsController.text.isNotEmpty
+        totalMonths: _selectedType == 'loan' && _totalMonthsController.text.isNotEmpty
             ? int.tryParse(_totalMonthsController.text)
             : null,
-        paymentDay: _selectedType == 'loan' &&
-                _paymentDayController.text.isNotEmpty
-            ? int.tryParse(_paymentDayController.text)
-            : null,
-        interestRate: _selectedType == 'loan' &&
-                _interestRateController.text.isNotEmpty
-            ? double.tryParse(_interestRateController.text)
-            : null,
-        loanStartDate: _selectedType == 'loan' ? _loanStartDate : null,
-        loanEndDate: _selectedType == 'loan' && _loanStartDate != null
-            ? _calculateLoanEndDate()
-            : null,
-        // Maintenance-specific fields
-        maintenanceType:
-            _selectedType == 'maintenance' ? _selectedMaintenanceType : null,
-        reminderDays: _selectedType == 'maintenance' &&
-                _reminderDaysController.text.isNotEmpty
-            ? int.tryParse(_reminderDaysController.text)
-            : 1,
-        lastDoneDate: _selectedType == 'maintenance' ? _lastDoneDate : null,
-        recurrence:
-            _selectedType == 'maintenance' ? _selectedRecurrence : null,
-        customRecurrenceDays: _selectedType == 'maintenance' &&
-                _selectedRecurrence == 'custom'
+        completedMonths: completedMonths,
+        recurrence: _selectedType == 'maintenance' ? _selectedRecurrence : null,
+        customRecurrenceDays: _selectedType == 'maintenance' && _selectedRecurrence == 'custom'
             ? int.tryParse(_customDaysController.text)
             : null,
-        payments: _isEditMode ? _existingItem!.payments : [],
+        paymentHistory: paymentHistory,
       );
 
       if (_isEditMode) {
@@ -1166,20 +1332,5 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  DateTime? _calculateLoanEndDate() {
-    if (_loanStartDate == null || _totalMonthsController.text.isEmpty) {
-      return null;
-    }
-
-    final totalMonths = int.tryParse(_totalMonthsController.text);
-    if (totalMonths == null) return null;
-
-    return DateTime(
-      _loanStartDate!.year,
-      _loanStartDate!.month + totalMonths,
-      _loanStartDate!.day,
-    );
   }
 }

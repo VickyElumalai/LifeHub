@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:life_hub/data/models/todo_model.dart';
-import 'package:life_hub/data/local/hive_service.dart';
-import 'package:life_hub/data/local/notification_service.dart';
+import 'package:life_hub/data/service/hive_service.dart';
+import 'package:life_hub/data/service/notification_service.dart';
 
 class TodoProvider extends ChangeNotifier {
   List<TodoModel> _todoList = [];
@@ -97,17 +97,9 @@ class TodoProvider extends ChangeNotifier {
       _todoList.add(todo);
       _todoList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       
-      // Schedule notification if enabled and has due time
+      // Schedule notifications if enabled and has due time
       if (enableNotifications && todo.endTime != null) {
-        final notificationTime = todo.endTime!.subtract(const Duration(minutes: 1));
-        if (notificationTime.isAfter(DateTime.now())) {
-          await NotificationService.scheduleTaskNotification(
-            id: todo.id,
-            title: 'Task Due Soon',
-            content: todo.content,
-            scheduledTime: todo.endTime!,
-          );
-        }
+        await _scheduleTodoReminders(todo);
       }
       
       notifyListeners();
@@ -116,7 +108,7 @@ class TodoProvider extends ChangeNotifier {
       rethrow;
     }
   }
-  
+
   Future<void> updateTodo(TodoModel todo, {bool enableNotifications = true}) async {
     try {
       await HiveService.saveData('todoBox', todo.id, todo.toJson());
@@ -124,20 +116,10 @@ class TodoProvider extends ChangeNotifier {
       if (index != -1) {
         _todoList[index] = todo;
         
-        // Cancel old notification
-        await NotificationService.cancelNotification(todo.id);
-        
-        // Schedule new notification if needed
+        // Cancel old notifications and schedule new ones
+        await _cancelTodoReminders(todo.id);
         if (enableNotifications && todo.endTime != null && todo.isPending) {
-          final notificationTime = todo.endTime!.subtract(const Duration(minutes: 1));
-          if (notificationTime.isAfter(DateTime.now())) {
-            await NotificationService.scheduleTaskNotification(
-              id: todo.id,
-              title: 'Task Due Soon',
-              content: todo.content,
-              scheduledTime: todo.endTime!,
-            );
-          }
+          await _scheduleTodoReminders(todo);
         }
         
         notifyListeners();
@@ -145,6 +127,65 @@ class TodoProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error updating todo: $e');
       rethrow;
+    }
+  }
+
+  // NEW: Schedule all reminder notifications for a todo
+  Future<void> _scheduleTodoReminders(TodoModel todo) async {
+    if (todo.endTime == null) return;
+
+    // If no custom reminders, use default 1 minute before
+    final reminders = todo.reminderMinutes.isEmpty ? ['1'] : todo.reminderMinutes;
+
+    for (int remIdx = 0; remIdx < reminders.length; remIdx++) {
+      final minutes = int.tryParse(reminders[remIdx]) ?? 0;
+      if (minutes <= 0) continue;
+
+      final fireAt = todo.endTime!.subtract(Duration(minutes: minutes));
+      if (!fireAt.isAfter(DateTime.now())) continue;
+
+      final reminderId = '${todo.id}_rem$remIdx';
+      final reminderText = _formatReminderText(minutes);
+
+      await NotificationService.scheduleReminder(
+        reminderId: reminderId,
+        title: todo.content,
+        body: reminderText,
+        fireAt: fireAt,
+      );
+    }
+  }
+
+  String _formatReminderText(int minutes) {
+    if (minutes < 60) return '$minutes minute${minutes > 1 ? 's' : ''} before';
+    if (minutes < 1440) {
+      final h = minutes ~/ 60;
+      return '$h hour${h > 1 ? 's' : ''} before';
+    }
+    final d = minutes ~/ 1440;
+    return '$d day${d > 1 ? 's' : ''} before';
+  }
+
+  // NEW: Cancel all reminders for a todo
+  Future<void> _cancelTodoReminders(String todoId) async {
+    final todo = getTodoById(todoId);
+    if (todo != null) {
+      final reminders = todo.reminderMinutes.isEmpty ? ['1'] : todo.reminderMinutes;
+      for (int remIdx = 0; remIdx < reminders.length; remIdx++) {
+        final reminderId = '${todo.id}_rem$remIdx';
+        await NotificationService.cancelNotification(reminderId);
+      }
+    }
+  }
+
+  Future<void> deleteTodo(String id) async {
+    try {
+      await HiveService.deleteData('todoBox', id);
+      await _cancelTodoReminders(id); // Updated
+      _todoList.removeWhere((item) => item.id == id);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error deleting todo: $e');
     }
   }
   
@@ -185,18 +226,8 @@ class TodoProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error marking as pending: $e');
     }
-  }
-  
-  Future<void> deleteTodo(String id) async {
-    try {
-      await HiveService.deleteData('todoBox', id);
-      await NotificationService.cancelNotification(id);
-      _todoList.removeWhere((item) => item.id == id);
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error deleting todo: $e');
-    }
-  }
+  } 
+
   
   TodoModel? getTodoById(String id) {
     try {

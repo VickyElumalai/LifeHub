@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 
 class LoanItemCard extends StatelessWidget {
   final LoanMaintenanceModel loan;
-  final VoidCallback? onPay;
+  final VoidCallback? onPaid;
   final VoidCallback? onViewHistory;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -13,7 +13,7 @@ class LoanItemCard extends StatelessWidget {
   const LoanItemCard({
     super.key,
     required this.loan,
-    this.onPay,
+    this.onPaid,
     this.onViewHistory,
     this.onEdit,
     this.onDelete,
@@ -56,7 +56,26 @@ class LoanItemCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    _buildCategoryIcon(loan.category),
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            AppColors.greenGradientStart,
+                            AppColors.greenGradientEnd,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.account_balance_wallet,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -71,15 +90,13 @@ class LoanItemCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          if (loan.loanProvider != null) ...[
-                            Text(
-                              loan.loanProvider!,
-                              style: TextStyle(
-                                color: AppColors.getSubtitleColor(context),
-                                fontSize: 13,
-                              ),
+                          Text(
+                            'Month ${loan.completedMonths}/${loan.totalMonths}',
+                            style: TextStyle(
+                              color: AppColors.getSubtitleColor(context),
+                              fontSize: 13,
                             ),
-                          ],
+                          ),
                         ],
                       ),
                     ),
@@ -160,48 +177,6 @@ class LoanItemCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryIcon(String category) {
-    String emoji;
-    List<Color> colors;
-
-    switch (category) {
-      case 'bike':
-        emoji = '🏍️';
-        colors = [AppColors.blueGradientStart, AppColors.blueGradientEnd];
-        break;
-      case 'home':
-        emoji = '🏠';
-        colors = [AppColors.purpleGradientStart, AppColors.purpleGradientEnd];
-        break;
-      case 'chittu':
-        emoji = '💰';
-        colors = [AppColors.greenGradientStart, AppColors.greenGradientEnd];
-        break;
-      case 'personal':
-        emoji = '💳';
-        colors = [AppColors.pinkGradientStart, AppColors.pinkGradientEnd];
-        break;
-      default:
-        emoji = '💵';
-        colors = [AppColors.yellowGradientStart, AppColors.yellowGradientEnd];
-    }
-
-    return Container(
-      width: 50,
-      height: 50,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colors),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Text(
-          emoji,
-          style: const TextStyle(fontSize: 24),
-        ),
-      ),
-    );
-  }
-
   Widget _buildProgressSection(BuildContext context, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,7 +193,7 @@ class LoanItemCard extends StatelessWidget {
               ),
             ),
             Text(
-              '${loan.completedMonths}/${loan.totalMonths} months',
+              '${loan.progressPercentage.toStringAsFixed(1)}%',
               style: TextStyle(
                 color: AppColors.getTextColor(context),
                 fontSize: 13,
@@ -246,24 +221,12 @@ class LoanItemCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '${loan.progressPercentage.toStringAsFixed(1)}% completed',
-              style: TextStyle(
-                color: AppColors.getSubtitleColor(context),
-                fontSize: 11,
-              ),
-            ),
-            Text(
-              '${loan.remainingMonths} months left',
-              style: TextStyle(
-                color: AppColors.getSubtitleColor(context),
-                fontSize: 11,
-              ),
-            ),
-          ],
+        Text(
+          '${loan.remainingMonths} months remaining',
+          style: TextStyle(
+            color: AppColors.getSubtitleColor(context),
+            fontSize: 11,
+          ),
         ),
       ],
     );
@@ -285,149 +248,54 @@ class LoanItemCard extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.currency_rupee,
-                          size: 14,
-                          color: AppColors.greenGradientStart,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Total Amount',
-                          style: TextStyle(
-                            color: AppColors.getSubtitleColor(context),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${loan.totalAmount?.toStringAsFixed(0) ?? '0'}',
-                      style: TextStyle(
-                        color: AppColors.getTextColor(context),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 35,
-                color: AppColors.getSubtitleColor(context).withOpacity(0.2),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          size: 14,
-                          color: AppColors.completed,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Paid',
-                          style: TextStyle(
-                            color: AppColors.getSubtitleColor(context),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${loan.totalPaid.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        color: AppColors.completed,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 35,
-                color: AppColors.getSubtitleColor(context).withOpacity(0.2),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.pending,
-                          size: 14,
-                          color: AppColors.mediumPriority,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Balance',
-                          style: TextStyle(
-                            color: AppColors.getSubtitleColor(context),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${loan.remainingAmount.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        color: AppColors.mediumPriority,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (loan.averagePayment > 0) ...[
-            const SizedBox(height: 8),
-            Divider(
-              height: 1,
-              color: AppColors.getSubtitleColor(context).withOpacity(0.2),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Avg. Payment',
+                  'Total Amount',
                   style: TextStyle(
                     color: AppColors.getSubtitleColor(context),
-                    fontSize: 12,
+                    fontSize: 11,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  '₹${loan.averagePayment.toStringAsFixed(0)}',
+                  '₹${loan.totalAmount?.toStringAsFixed(0) ?? '0'}',
                   style: TextStyle(
                     color: AppColors.getTextColor(context),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
-          ],
+          ),         
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Paid',
+                  style: TextStyle(
+                    color: AppColors.getSubtitleColor(context),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '₹${loan.totalPaid.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: AppColors.completed,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -521,7 +389,7 @@ class LoanItemCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (onViewHistory != null && loan.payments.isNotEmpty) ...[
+          if (onViewHistory != null && loan.paymentHistory.isNotEmpty) ...[
             _buildActionButton(
               label: 'History',
               icon: Icons.history,
@@ -539,12 +407,12 @@ class LoanItemCard extends StatelessWidget {
             ),
             const SizedBox(width: 20),
           ],
-          if (onPay != null) ...[
+          if (onPaid != null && loan.status == 'active') ...[
             _buildActionButton(
-              label: 'Pay',
+              label: 'Mark Paid',
               icon: Icons.payment,
               color: AppColors.completed,
-              onTap: onPay,
+              onTap: onPaid,
             ),
             const SizedBox(width: 20),
           ],

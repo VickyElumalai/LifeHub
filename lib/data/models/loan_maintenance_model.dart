@@ -2,64 +2,52 @@ class LoanMaintenanceModel {
   final String id;
   final String title;
   final String type; // 'loan' or 'maintenance'
-  final String category; // For loans: bike, home, chittu, personal | For maintenance: vehicle, home, appliance
   
   // Common fields
-  final String status; // active, completed, pending
+  final String status; // active, completed
   final DateTime createdAt;
   final List<String> attachmentPaths;
   final String? notes;
+  final DateTime nextDueDate;
+  final int reminderDays; // Days before to remind
+  final int? paymentDay; // Day of month for payments (1-31) - ADDED THIS
   
   // Loan-specific fields
-  final double? totalAmount; // Total loan amount
-  final int? totalMonths; // Total duration in months
+  final double? totalAmount;
+  final int? totalMonths;
   final DateTime? loanStartDate;
-  final DateTime? loanEndDate;
-  final int? paymentDay; // Day of month for payment (1-31)
-  final double? interestRate; // Interest rate percentage
-  final String? loanProvider; // Bank/Finance company name
-  final String? accountNumber;
+  final int completedMonths; // Count of completed payments
   
   // Maintenance-specific fields
-  final String? maintenanceType; // insurance, service, general
-  final int? reminderDays; // Days before to remind
-  final DateTime? lastDoneDate;
   final String? recurrence; // none, monthly, quarterly, halfyearly, yearly, custom
   final int? customRecurrenceDays;
+  final DateTime? lastDoneDate;
   
-  // Common date field
-  final DateTime nextDueDate;
-  
-  // Payment/Transaction history
-  final List<PaymentModel> payments;
+  // Payment history for tracking
+  final List<PaymentRecord> paymentHistory;
 
   LoanMaintenanceModel({
     required this.id,
     required this.title,
     required this.type,
-    required this.category,
     required this.status,
     required this.createdAt,
     required this.nextDueDate,
+    required this.reminderDays,
+    this.paymentDay, // ADDED THIS
     this.attachmentPaths = const [],
     this.notes,
     // Loan fields
     this.totalAmount,
     this.totalMonths,
     this.loanStartDate,
-    this.loanEndDate,
-    this.paymentDay,
-    this.interestRate,
-    this.loanProvider,
-    this.accountNumber,
+    this.completedMonths = 0,
     // Maintenance fields
-    this.maintenanceType,
-    this.reminderDays,
-    this.lastDoneDate,
     this.recurrence,
     this.customRecurrenceDays,
-    // Payments
-    this.payments = const [],
+    this.lastDoneDate,
+    // Payment history
+    this.paymentHistory = const [],
   });
 
   // Computed properties
@@ -76,53 +64,32 @@ class LoanMaintenanceModel {
            status == 'active';
   }
 
-  // For loans - calculate total paid
-  double get totalPaid {
-    return payments
-        .where((p) => p.status == 'paid')
-        .fold(0.0, (sum, p) => sum + p.amount);
-  }
-
-  // For loans - remaining amount
-  double get remainingAmount {
-    if (totalAmount == null) return 0.0;
-    return totalAmount! - totalPaid;
-  }
-
-  // For loans - completed months
-  int get completedMonths {
-    return payments.where((p) => p.status == 'paid').length;
-  }
-
-  // For loans - remaining months
+  // For loans
   int get remainingMonths {
     if (totalMonths == null) return 0;
     return totalMonths! - completedMonths;
   }
 
-  // For loans - progress percentage
   double get progressPercentage {
     if (totalMonths == null || totalMonths == 0) return 0;
     return (completedMonths / totalMonths!) * 100;
   }
 
-  // For loans - average payment amount
-  double get averagePayment {
-    final paidPayments = payments.where((p) => p.status == 'paid').toList();
-    if (paidPayments.isEmpty) return 0.0;
-    return totalPaid / paidPayments.length;
+  double get totalPaid {
+    return paymentHistory
+        .where((p) => p.isPaid)
+        .fold(0.0, (sum, p) => sum + p.amount);
   }
 
-  // Get display subtitle based on type
-  String get displaySubtitle {
-    if (isLoan) {
-      if (totalAmount != null && totalMonths != null) {
-        return '₹${totalAmount!.toStringAsFixed(0)} • $totalMonths months';
-      }
-      return loanProvider ?? '';
-    } else {
-      return maintenanceType ?? '';
-    }
+  double get remainingAmount {
+    if (totalAmount == null) return 0.0;
+    return totalAmount! - totalPaid;
+  }
+
+  double get averagePayment {
+    final paidPayments = paymentHistory.where((p) => p.isPaid).toList();
+    if (paidPayments.isEmpty) return 0.0;
+    return totalPaid / paidPayments.length;
   }
 
   Map<String, dynamic> toJson() {
@@ -130,29 +97,24 @@ class LoanMaintenanceModel {
       'id': id,
       'title': title,
       'type': type,
-      'category': category,
       'status': status,
       'createdAt': createdAt.toIso8601String(),
       'nextDueDate': nextDueDate.toIso8601String(),
+      'reminderDays': reminderDays,
+      'paymentDay': paymentDay, // ADDED THIS
       'attachmentPaths': attachmentPaths,
       'notes': notes,
       // Loan fields
       'totalAmount': totalAmount,
       'totalMonths': totalMonths,
       'loanStartDate': loanStartDate?.toIso8601String(),
-      'loanEndDate': loanEndDate?.toIso8601String(),
-      'paymentDay': paymentDay,
-      'interestRate': interestRate,
-      'loanProvider': loanProvider,
-      'accountNumber': accountNumber,
+      'completedMonths': completedMonths,
       // Maintenance fields
-      'maintenanceType': maintenanceType,
-      'reminderDays': reminderDays,
-      'lastDoneDate': lastDoneDate?.toIso8601String(),
       'recurrence': recurrence,
       'customRecurrenceDays': customRecurrenceDays,
-      // Payments
-      'payments': payments.map((p) => p.toJson()).toList(),
+      'lastDoneDate': lastDoneDate?.toIso8601String(),
+      // Payment history
+      'paymentHistory': paymentHistory.map((p) => p.toJson()).toList(),
     };
   }
 
@@ -161,10 +123,11 @@ class LoanMaintenanceModel {
       id: json['id'],
       title: json['title'],
       type: json['type'],
-      category: json['category'],
       status: json['status'],
       createdAt: DateTime.parse(json['createdAt']),
       nextDueDate: DateTime.parse(json['nextDueDate']),
+      reminderDays: json['reminderDays'] ?? 1,
+      paymentDay: json['paymentDay'], // ADDED THIS
       attachmentPaths: json['attachmentPaths'] != null
           ? List<String>.from(json['attachmentPaths'])
           : [],
@@ -177,27 +140,17 @@ class LoanMaintenanceModel {
       loanStartDate: json['loanStartDate'] != null
           ? DateTime.parse(json['loanStartDate'])
           : null,
-      loanEndDate: json['loanEndDate'] != null
-          ? DateTime.parse(json['loanEndDate'])
-          : null,
-      paymentDay: json['paymentDay'],
-      interestRate: json['interestRate'] != null
-          ? (json['interestRate'] as num).toDouble()
-          : null,
-      loanProvider: json['loanProvider'],
-      accountNumber: json['accountNumber'],
+      completedMonths: json['completedMonths'] ?? 0,
       // Maintenance fields
-      maintenanceType: json['maintenanceType'],
-      reminderDays: json['reminderDays'],
+      recurrence: json['recurrence'],
+      customRecurrenceDays: json['customRecurrenceDays'],
       lastDoneDate: json['lastDoneDate'] != null
           ? DateTime.parse(json['lastDoneDate'])
           : null,
-      recurrence: json['recurrence'],
-      customRecurrenceDays: json['customRecurrenceDays'],
-      // Payments
-      payments: json['payments'] != null
-          ? (json['payments'] as List)
-              .map((p) => PaymentModel.fromJson(p))
+      // Payment history
+      paymentHistory: json['paymentHistory'] != null
+          ? (json['paymentHistory'] as List)
+              .map((p) => PaymentRecord.fromJson(p))
               .toList()
           : [],
     );
@@ -205,164 +158,83 @@ class LoanMaintenanceModel {
 
   LoanMaintenanceModel copyWith({
     String? title,
-    String? category,
     String? status,
     DateTime? nextDueDate,
+    int? reminderDays,
+    int? paymentDay, // ADDED THIS
     List<String>? attachmentPaths,
     String? notes,
     // Loan fields
     double? totalAmount,
     int? totalMonths,
     DateTime? loanStartDate,
-    DateTime? loanEndDate,
-    int? paymentDay,
-    double? interestRate,
-    String? loanProvider,
-    String? accountNumber,
+    int? completedMonths,
     // Maintenance fields
-    String? maintenanceType,
-    int? reminderDays,
-    DateTime? lastDoneDate,
     String? recurrence,
     int? customRecurrenceDays,
-    // Payments
-    List<PaymentModel>? payments,
+    DateTime? lastDoneDate,
+    // Payment history
+    List<PaymentRecord>? paymentHistory,
   }) {
     return LoanMaintenanceModel(
       id: id,
       title: title ?? this.title,
       type: type,
-      category: category ?? this.category,
       status: status ?? this.status,
       createdAt: createdAt,
       nextDueDate: nextDueDate ?? this.nextDueDate,
+      reminderDays: reminderDays ?? this.reminderDays,
+      paymentDay: paymentDay ?? this.paymentDay, // ADDED THIS
       attachmentPaths: attachmentPaths ?? this.attachmentPaths,
       notes: notes ?? this.notes,
       totalAmount: totalAmount ?? this.totalAmount,
       totalMonths: totalMonths ?? this.totalMonths,
       loanStartDate: loanStartDate ?? this.loanStartDate,
-      loanEndDate: loanEndDate ?? this.loanEndDate,
-      paymentDay: paymentDay ?? this.paymentDay,
-      interestRate: interestRate ?? this.interestRate,
-      loanProvider: loanProvider ?? this.loanProvider,
-      accountNumber: accountNumber ?? this.accountNumber,
-      maintenanceType: maintenanceType ?? this.maintenanceType,
-      reminderDays: reminderDays ?? this.reminderDays,
-      lastDoneDate: lastDoneDate ?? this.lastDoneDate,
+      completedMonths: completedMonths ?? this.completedMonths,
       recurrence: recurrence ?? this.recurrence,
       customRecurrenceDays: customRecurrenceDays ?? this.customRecurrenceDays,
-      payments: payments ?? this.payments,
+      lastDoneDate: lastDoneDate ?? this.lastDoneDate,
+      paymentHistory: paymentHistory ?? this.paymentHistory,
     );
   }
 }
 
-class PaymentModel {
+class PaymentRecord {
   final String id;
-  final String parentId; // Loan/Maintenance ID
   final double amount;
-  final DateTime dueDate;
-  final DateTime? paidDate;
-  final String status; // paid, pending, skipped
-  final String? transactionId;
-  final String paymentMethod; // online, cash, upi, card, cheque
+  final DateTime paidDate;
+  final int monthNumber;
+  final bool isPaid;
   final String? notes;
-  final DateTime createdAt;
-  final int? monthNumber; // For loans to track which month payment
 
-  PaymentModel({
+  PaymentRecord({
     required this.id,
-    required this.parentId,
     required this.amount,
-    required this.dueDate,
-    this.paidDate,
-    required this.status,
-    this.transactionId,
-    required this.paymentMethod,
+    required this.paidDate,
+    required this.monthNumber,
+    this.isPaid = true,
     this.notes,
-    required this.createdAt,
-    this.monthNumber,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'parentId': parentId,
       'amount': amount,
-      'dueDate': dueDate.toIso8601String(),
-      'paidDate': paidDate?.toIso8601String(),
-      'status': status,
-      'transactionId': transactionId,
-      'paymentMethod': paymentMethod,
-      'notes': notes,
-      'createdAt': createdAt.toIso8601String(),
+      'paidDate': paidDate.toIso8601String(),
       'monthNumber': monthNumber,
+      'isPaid': isPaid,
+      'notes': notes,
     };
   }
 
-  factory PaymentModel.fromJson(Map<String, dynamic> json) {
-    return PaymentModel(
+  factory PaymentRecord.fromJson(Map<String, dynamic> json) {
+    return PaymentRecord(
       id: json['id'],
-      parentId: json['parentId'],
       amount: (json['amount'] as num).toDouble(),
-      dueDate: DateTime.parse(json['dueDate']),
-      paidDate: json['paidDate'] != null 
-          ? DateTime.parse(json['paidDate']) 
-          : null,
-      status: json['status'],
-      transactionId: json['transactionId'],
-      paymentMethod: json['paymentMethod'],
-      notes: json['notes'],
-      createdAt: DateTime.parse(json['createdAt']),
+      paidDate: DateTime.parse(json['paidDate']),
       monthNumber: json['monthNumber'],
+      isPaid: json['isPaid'] ?? true,
+      notes: json['notes'],
     );
   }
-}
-
-// Category configuration helper
-class LoanMaintenanceConfig {
-  // Loan categories
-  static const Map<String, Map<String, dynamic>> loanCategories = {
-    'bike': {
-      'icon': '🏍️',
-      'label': 'Bike Loan/EMI',
-      'color': 0xFF4facfe,
-    },
-    'home': {
-      'icon': '🏠',
-      'label': 'Home Loan/Gold Loan',
-      'color': 0xFFf093fb,
-    },
-    'chittu': {
-      'icon': '💰',
-      'label': 'Chittu/Finance',
-      'color': 0xFF43e97b,
-    },
-    'personal': {
-      'icon': '💳',
-      'label': 'Personal Loan',
-      'color': 0xFFfa709a,
-    },
-  };
-
-  // Maintenance categories
-  static const Map<String, Map<String, dynamic>> maintenanceCategories = {
-    'vehicle': {
-      'icon': '🚗',
-      'label': 'Vehicle Maintenance',
-      'types': ['Insurance Renewal', 'Oil Change', 'Service', 'Tire Rotation', 'Battery Check'],
-      'color': 0xFF4facfe,
-    },
-    'home': {
-      'icon': '🏠',
-      'label': 'Home Maintenance',
-      'types': ['AC Service', 'Water Filter', 'Plumbing', 'Electrical', 'Painting'],
-      'color': 0xFFf093fb,
-    },
-    'appliance': {
-      'icon': '🔌',
-      'label': 'Appliance Maintenance',
-      'types': ['Refrigerator', 'Washing Machine', 'TV', 'Microwave', 'Other'],
-      'color': 0xFF43e97b,
-    },
-  };
 }

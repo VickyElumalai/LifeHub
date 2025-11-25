@@ -4,6 +4,7 @@ class TodoModel {
   final String priority;
   final DateTime? endTime;
   final DateTime createdAt;
+  final List<String> reminderMinutes;
   String? voicePath;
   String? imagePath;
   String status;
@@ -14,6 +15,7 @@ class TodoModel {
     required this.priority,
     this.endTime,
     required this.createdAt,
+    this.reminderMinutes = const [],
     this.voicePath,
     this.imagePath,
     this.status = 'pending',
@@ -30,6 +32,7 @@ class TodoModel {
       'priority': priority,
       'endTime': endTime?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      'reminderMinutes': reminderMinutes,
       'voicePath': voicePath,
       'imagePath': imagePath,
       'status': status,
@@ -42,6 +45,7 @@ class TodoModel {
       content: json['content'],
       priority: json['priority'],
       endTime: json['endTime'] != null ? DateTime.parse(json['endTime']) : null,
+       reminderMinutes: List<String>.from(json['reminderMinutes'] ?? []), 
       createdAt: DateTime.parse(json['createdAt']),
       voicePath: json['voicePath'],
       imagePath: json['imagePath'],
@@ -54,6 +58,7 @@ class TodoModel {
     String? priority,
     DateTime? endTime,
     String? voicePath,
+     List<String>? reminderMinutes,
     String? imagePath,
     String? status,
   }) {
@@ -63,6 +68,7 @@ class TodoModel {
       priority: priority ?? this.priority,
       endTime: endTime ?? this.endTime,
       createdAt: createdAt,
+      reminderMinutes: reminderMinutes ?? this.reminderMinutes, 
       voicePath: voicePath ?? this.voicePath,
       imagePath: imagePath ?? this.imagePath,
       status: status ?? this.status,

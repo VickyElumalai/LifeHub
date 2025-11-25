@@ -22,7 +22,15 @@ class _EventsListScreenState extends State<EventsListScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          // Reset selected date to today when leaving the screen
+          final provider = Provider.of<EventProvider>(context, listen: false);
+          provider.setSelectedDate(DateTime.now());
+        }
+      },
+      child: Scaffold(
       body: SafeArea(
         child: Column(
           children: [
@@ -43,9 +51,14 @@ class _EventsListScreenState extends State<EventsListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
+          final provider = Provider.of<EventProvider>(context, listen: false);
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const CreateEventScreen()),
+            MaterialPageRoute(
+              builder: (_) => CreateEventScreen(
+                preSelectedDate: provider.selectedDate,
+              ),
+            ),
           );
         },
         backgroundColor: Colors.transparent,
@@ -72,6 +85,7 @@ class _EventsListScreenState extends State<EventsListScreen> {
           child: const Icon(Icons.add, color: Colors.white, size: 30),
         ),
       ),
+      )
     );
   }
 

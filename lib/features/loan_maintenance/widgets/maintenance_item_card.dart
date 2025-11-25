@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/data/models/loan_maintenance_model.dart';
 import 'package:intl/intl.dart';
-import 'package:open_file/open_file.dart';
 
 class MaintenanceItemCard extends StatelessWidget {
   final LoanMaintenanceModel maintenance;
   final VoidCallback? onComplete;
+  final VoidCallback? onViewHistory;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -15,6 +15,7 @@ class MaintenanceItemCard extends StatelessWidget {
     super.key,
     required this.maintenance,
     this.onComplete,
+    this.onViewHistory,
     this.onEdit,
     this.onDelete,
   });
@@ -56,26 +57,70 @@ class MaintenanceItemCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    _buildCategoryIcon(maintenance.category),
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            AppColors.blueGradientStart,
+                            AppColors.blueGradientEnd,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.build_circle,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(
+                            maintenance.title,
+                            style: TextStyle(
+                              color: AppColors.getTextColor(context),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
                           Row(
                             children: [
-                              Expanded(
-                                child: Text(
-                                  maintenance.title,
-                                  style: TextStyle(
-                                    color: AppColors.getTextColor(context),
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                              Text(
+                                _getRecurrenceText(),
+                                style: TextStyle(
+                                  color: AppColors.getSubtitleColor(context),
+                                  fontSize: 13,
                                 ),
                               ),
-                              if (maintenance.maintenanceType != null)
-                                _buildTypeBadge(maintenance.maintenanceType!),
+                              if (maintenance.paymentHistory.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.completed.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${maintenance.paymentHistory.length} done',
+                                    style: const TextStyle(
+                                      color: AppColors.completed,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ],
@@ -114,18 +159,12 @@ class MaintenanceItemCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                _buildDateSection(context, isDark),
-                if (maintenance.recurrence != null &&
-                    maintenance.recurrence != 'none') ...[
+                _buildNextDueDateSection(context, isDark),
+                if (maintenance.lastDoneDate != null) ...[
                   const SizedBox(height: 12),
-                  _buildRecurrenceInfo(context),
+                  _buildLastDoneSection(context, isDark),
                 ],
-                if (maintenance.attachmentPaths.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _buildAttachments(context),
-                ],
-                if (maintenance.notes != null &&
-                    maintenance.notes!.isNotEmpty) ...[
+                if (maintenance.notes != null && maintenance.notes!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -155,100 +194,39 @@ class MaintenanceItemCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (maintenance.attachmentPaths.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildAttachments(context, isDark),
+                ],
               ],
             ),
           ),
-          _buildActions(context, isDark),
+          if (maintenance.status == 'active') _buildActions(context, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildCategoryIcon(String category) {
-    String emoji;
-    List<Color> colors;
-
-    switch (category) {
-      case 'vehicle':
-        emoji = '🚗';
-        colors = [AppColors.blueGradientStart, AppColors.blueGradientEnd];
-        break;
-      case 'home':
-        emoji = '🏠';
-        colors = [AppColors.purpleGradientStart, AppColors.purpleGradientEnd];
-        break;
-      case 'appliance':
-        emoji = '🔌';
-        colors = [AppColors.greenGradientStart, AppColors.greenGradientEnd];
-        break;
+  String _getRecurrenceText() {
+    switch (maintenance.recurrence) {
+      case 'none':
+        return 'One-time task';
+      case 'monthly':
+        return 'Recurring monthly';
+      case 'quarterly':
+        return 'Recurring quarterly';
+      case 'halfyearly':
+        return 'Recurring half-yearly';
+      case 'yearly':
+        return 'Recurring yearly';
+      case 'custom':
+        return 'Every ${maintenance.customRecurrenceDays} days';
       default:
-        emoji = '🔧';
-        colors = [AppColors.yellowGradientStart, AppColors.yellowGradientEnd];
+        return 'One-time task';
     }
-
-    return Container(
-      width: 50,
-      height: 50,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colors),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Text(
-          emoji,
-          style: const TextStyle(fontSize: 24),
-        ),
-      ),
-    );
   }
 
-  Widget _buildTypeBadge(String type) {
-    IconData icon;
-    switch (type.toLowerCase()) {
-      case 'insurance renewal':
-      case 'insurance':
-        icon = Icons.shield;
-        break;
-      case 'oil change':
-      case 'service':
-        icon = Icons.build;
-        break;
-      case 'ac service':
-        icon = Icons.ac_unit;
-        break;
-      default:
-        icon = Icons.settings;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.blueGradientStart.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: AppColors.blueGradientStart,
-            size: 12,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            type.toUpperCase(),
-            style: const TextStyle(
-              color: AppColors.blueGradientStart,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateSection(BuildContext context, bool isDark) {
+  Widget _buildNextDueDateSection(BuildContext context, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -256,158 +234,63 @@ class MaintenanceItemCard extends StatelessWidget {
             ? AppColors.highPriority.withOpacity(0.1)
             : (maintenance.isDueToday
                 ? AppColors.mediumPriority.withOpacity(0.1)
-                : AppColors.blueGradientStart.withOpacity(0.05)),
+                : AppColors.blueGradientStart.withOpacity(0.1)),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: maintenance.isOverdue
               ? AppColors.highPriority.withOpacity(0.3)
               : (maintenance.isDueToday
                   ? AppColors.mediumPriority.withOpacity(0.3)
-                  : AppColors.blueGradientStart.withOpacity(0.1)),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(
-                maintenance.isOverdue
-                    ? Icons.warning_amber
-                    : (maintenance.isDueToday
-                        ? Icons.today
-                        : Icons.calendar_today),
-                size: 18,
-                color: maintenance.isOverdue
-                    ? AppColors.highPriority
-                    : (maintenance.isDueToday
-                        ? AppColors.mediumPriority
-                        : AppColors.getSubtitleColor(context)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      maintenance.isOverdue
-                          ? 'Overdue!'
-                          : (maintenance.isDueToday
-                              ? 'Due Today'
-                              : 'Next Due Date'),
-                      style: TextStyle(
-                        color: maintenance.isOverdue
-                            ? AppColors.highPriority
-                            : (maintenance.isDueToday
-                                ? AppColors.mediumPriority
-                                : AppColors.getSubtitleColor(context)),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      DateFormat('EEEE, MMM dd, yyyy')
-                          .format(maintenance.nextDueDate),
-                      style: TextStyle(
-                        color: AppColors.getTextColor(context),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (maintenance.lastDoneDate != null) ...[
-            const SizedBox(height: 8),
-            Divider(
-              height: 1,
-              color: AppColors.getSubtitleColor(context).withOpacity(0.2),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.history,
-                  size: 16,
-                  color: AppColors.getSubtitleColor(context),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Last Done: ',
-                  style: TextStyle(
-                    color: AppColors.getSubtitleColor(context),
-                    fontSize: 12,
-                  ),
-                ),
-                Text(
-                  DateFormat('MMM dd, yyyy').format(maintenance.lastDoneDate!),
-                  style: TextStyle(
-                    color: AppColors.getTextColor(context),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecurrenceInfo(BuildContext context) {
-    String recurrenceText;
-    IconData icon = Icons.repeat;
-
-    switch (maintenance.recurrence) {
-      case 'monthly':
-        recurrenceText = 'Repeats Monthly';
-        break;
-      case 'quarterly':
-        recurrenceText = 'Repeats Every 3 Months';
-        break;
-      case 'halfyearly':
-        recurrenceText = 'Repeats Every 6 Months';
-        break;
-      case 'yearly':
-        recurrenceText = 'Repeats Yearly';
-        break;
-      case 'custom':
-        recurrenceText =
-            'Repeats Every ${maintenance.customRecurrenceDays} Days';
-        break;
-      default:
-        recurrenceText = 'No Recurrence';
-        icon = Icons.event_repeat;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.greenGradientStart.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.greenGradientStart.withOpacity(0.3),
+                  : AppColors.blueGradientStart.withOpacity(0.3)),
           width: 1,
         ),
       ),
       child: Row(
         children: [
           Icon(
-            icon,
-            size: 16,
-            color: AppColors.greenGradientStart,
+            maintenance.isOverdue
+                ? Icons.error_outline
+                : (maintenance.isDueToday
+                    ? Icons.today
+                    : Icons.calendar_today),
+            size: 18,
+            color: maintenance.isOverdue
+                ? AppColors.highPriority
+                : (maintenance.isDueToday
+                    ? AppColors.mediumPriority
+                    : AppColors.blueGradientStart),
           ),
-          const SizedBox(width: 8),
-          Text(
-            recurrenceText,
-            style: TextStyle(
-              color: AppColors.getTextColor(context),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  maintenance.isOverdue
+                      ? 'Maintenance Overdue!'
+                      : (maintenance.isDueToday
+                          ? 'Due Today'
+                          : 'Next Due Date'),
+                  style: TextStyle(
+                    color: maintenance.isOverdue
+                        ? AppColors.highPriority
+                        : (maintenance.isDueToday
+                            ? AppColors.mediumPriority
+                            : AppColors.getSubtitleColor(context)),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  DateFormat('EEEE, MMM dd, yyyy').format(maintenance.nextDueDate),
+                  style: TextStyle(
+                    color: AppColors.getTextColor(context),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -415,90 +298,145 @@ class MaintenanceItemCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAttachments(BuildContext context) {
+  Widget _buildLastDoneSection(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.completed.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.completed.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.check_circle,
+            size: 18,
+            color: AppColors.completed,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Last Completed',
+                  style: TextStyle(
+                    color: AppColors.getSubtitleColor(context),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  DateFormat('MMM dd, yyyy').format(maintenance.lastDoneDate!),
+                  style: TextStyle(
+                    color: AppColors.getTextColor(context),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttachments(BuildContext context, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Text(
+          'Attachments (${maintenance.attachmentPaths.length})',
+          style: TextStyle(
+            color: AppColors.getSubtitleColor(context),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: maintenance.attachmentPaths.length,
+            itemBuilder: (context, index) {
+              return GestureDetector(
+                onTap: () => _showAttachment(context, maintenance.attachmentPaths[index]),
+                child: Container(
+                  width: 80,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.black.withOpacity(0.1),
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(maintenance.attachmentPaths[index]),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey.withOpacity(0.2),
+                          child: const Icon(Icons.broken_image, size: 30),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAttachment(BuildContext context, String path) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
           children: [
-            Icon(
-              Icons.attach_file,
-              size: 14,
-              color: AppColors.getSubtitleColor(context),
+            Center(
+              child: InteractiveViewer(
+                child: Image.file(
+                  File(path),
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
-            const SizedBox(width: 6),
-            Text(
-              '${maintenance.attachmentPaths.length} Attachment${maintenance.attachmentPaths.length > 1 ? 's' : ''}',
-              style: TextStyle(
-                color: AppColors.getSubtitleColor(context),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            Positioned(
+              top: 40,
+              right: 20,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: maintenance.attachmentPaths.take(3).map((path) {
-            final fileName = path.split('/').last;
-            final isImage = fileName.toLowerCase().endsWith('.jpg') ||
-                fileName.toLowerCase().endsWith('.jpeg') ||
-                fileName.toLowerCase().endsWith('.png');
-
-            return GestureDetector(
-              onTap: () => _openFile(path),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 100),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.pinkGradientStart.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: AppColors.pinkGradientStart.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isImage ? Icons.image : Icons.description,
-                      size: 14,
-                      color: AppColors.pinkGradientStart,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        fileName,
-                        style: TextStyle(
-                          color: AppColors.getTextColor(context),
-                          fontSize: 10,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        if (maintenance.attachmentPaths.length > 3)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              '+${maintenance.attachmentPaths.length - 3} more',
-              style: TextStyle(
-                color: AppColors.getSubtitleColor(context),
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 
@@ -518,19 +456,28 @@ class MaintenanceItemCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          if (onViewHistory != null && maintenance.paymentHistory.isNotEmpty) ...[
+            _buildActionButton(
+              label: 'History',
+              icon: Icons.history,
+              color: AppColors.purpleGradientStart,
+              onTap: onViewHistory,
+            ),
+            const SizedBox(width: 20),
+          ],
           if (onEdit != null) ...[
             _buildActionButton(
               label: 'Edit',
               icon: Icons.edit,
-              color: AppColors.purpleGradientStart,
+              color: AppColors.blueGradientStart,
               onTap: onEdit,
             ),
             const SizedBox(width: 20),
           ],
           if (onComplete != null) ...[
             _buildActionButton(
-              label: 'Complete',
-              icon: Icons.check_circle,
+              label: 'Mark Done',
+              icon: Icons.check_circle_outline,
               color: AppColors.completed,
               onTap: onComplete,
             ),
@@ -573,14 +520,5 @@ class MaintenanceItemCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _openFile(String path) async {
-    try {
-      final result = await OpenFile.open(path);
-      print('Open file result: ${result.message}');
-    } catch (e) {
-      print('Error opening file: $e');
-    }
   }
 }

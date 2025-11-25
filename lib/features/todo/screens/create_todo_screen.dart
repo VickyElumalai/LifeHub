@@ -5,8 +5,8 @@ import 'package:life_hub/core/constants/app_colors.dart';
 import 'package:life_hub/data/models/todo_model.dart';
 import 'package:life_hub/providers/todo_provider.dart';
 import 'package:life_hub/providers/settings_provider.dart';
-import 'package:life_hub/data/local/file_service.dart';
-import 'package:life_hub/data/local/audio_service.dart';
+import 'package:life_hub/data/service/file_service.dart';
+import 'package:life_hub/data/service/audio_service.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 
@@ -27,6 +27,7 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
   DateTime? _endTime;
   String? _imagePath;
   String? _voicePath;
+  List<String> _selectedReminders = []; 
   bool _isLoading = false;
   bool _isRecording = false;
   int _recordingSeconds = 0;
@@ -55,6 +56,7 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
         _endTime = todo.endTime;
         _imagePath = todo.imagePath;
         _voicePath = todo.voicePath;
+        _selectedReminders = List.from(todo.reminderMinutes); 
       });
     }
   }
@@ -83,7 +85,7 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionLabel(context, 'Content *'),
+                      _buildSectionLabel(context, 'Content'),
                       const SizedBox(height: 8),
                       _buildContentField(context, isDark),
                       
@@ -96,7 +98,12 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
                       _buildSectionLabel(context, 'Due Date & Time (Optional)'),
                       const SizedBox(height: 12),
                       _buildDateTimePicker(context, isDark),
-                      
+                      if (_endTime != null) ...[
+                        const SizedBox(height: 25),
+                        _buildSectionLabel(context, 'Reminders (Optional)'),
+                        const SizedBox(height: 12),
+                        _buildCustomReminderSelector(context, isDark),
+                      ],
                       const SizedBox(height: 25),
                       _buildSectionLabel(context, 'Attachments (Optional)'),
                       const SizedBox(height: 12),
@@ -114,6 +121,269 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildCustomReminderSelector(BuildContext context, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Show selected reminders
+        if (_selectedReminders.isNotEmpty) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _selectedReminders.map((minutes) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      AppColors.purpleGradientStart,
+                      AppColors.purpleGradientEnd,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.notifications_active,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatReminderText(int.parse(minutes)),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedReminders.remove(minutes);
+                        });
+                      },
+                      child: const Icon(
+                        Icons.close,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 15),
+        ],
+        
+        // Add reminder button
+        GestureDetector(
+          onTap: () => _showCustomReminderDialog(context, isDark),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+              border: Border.all(
+                color: AppColors.purpleGradientStart.withOpacity(0.3),
+                width: 2,
+                style: BorderStyle.solid,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.add_alert,
+                  color: AppColors.purpleGradientStart,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Add Custom Reminder',
+                  style: TextStyle(
+                    color: AppColors.getTextColor(context),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        if (_selectedReminders.isEmpty) ...[
+          const SizedBox(height: 10),
+          Center(
+            child: Text(
+              'No reminders set (will notify 1 min before due time)',
+              style: TextStyle(
+                color: AppColors.getSubtitleColor(context),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showCustomReminderDialog(BuildContext context, bool isDark) {
+    int selectedValue = 15;
+    String selectedUnit = 'minutes';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: isDark ? AppColors.darkCard : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Add Reminder',
+              style: TextStyle(
+                color: AppColors.getTextColor(context),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Remind me before',
+                  style: TextStyle(
+                    color: AppColors.getSubtitleColor(context),
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: selectedValue,
+                        dropdownColor: isDark ? AppColors.darkCard : Colors.white,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        items: List.generate(60, (index) => index + 1)
+                            .map((num) => DropdownMenuItem(
+                                  value: num,
+                                  child: Text(
+                                    num.toString(),
+                                    style: TextStyle(
+                                      color: AppColors.getTextColor(context),
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedValue = value!;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: selectedUnit,
+                        dropdownColor: isDark ? AppColors.darkCard : Colors.white,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        items: ['minutes', 'hours', 'days']
+                            .map((unit) => DropdownMenuItem(
+                                  value: unit,
+                                  child: Text(
+                                    unit,
+                                    style: TextStyle(
+                                      color: AppColors.getTextColor(context),
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedUnit = value!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: AppColors.getSubtitleColor(context),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  int minutes = selectedValue;
+                  if (selectedUnit == 'hours') {
+                    minutes = selectedValue * 60;
+                  } else if (selectedUnit == 'days') {
+                    minutes = selectedValue * 1440;
+                  }
+                  
+                  setState(() {
+                    if (!_selectedReminders.contains(minutes.toString())) {
+                      _selectedReminders.add(minutes.toString());
+                      // Sort reminders by time (smallest first)
+                      _selectedReminders.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+                    }
+                  });
+                  
+                  Navigator.pop(context);
+                },
+                child: const Text(
+                  'Add',
+                  style: TextStyle(
+                    color: AppColors.purpleGradientStart,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatReminderText(int minutes) {
+    if (minutes < 60) {
+      return '$minutes min before';
+    } else if (minutes < 1440) {
+      final hours = minutes ~/ 60;
+      return '$hours hr${hours > 1 ? 's' : ''} before';
+    } else {
+      final days = minutes ~/ 1440;
+      return '$days day${days > 1 ? 's' : ''} before';
+    }
   }
 
   Widget _buildHeader(BuildContext context, bool isDark) {
@@ -189,8 +459,11 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
       maxLines: 5,
       maxLength: 500,
       validator: (value) {
-        if (value == null || value.trim().isEmpty) {
-          return 'Please enter task content';
+        // Content is only required if no voice or image is present
+        if ((value == null || value.trim().isEmpty) && 
+            _voicePath == null && 
+            _imagePath == null) {
+          return 'Please enter content or add voice/image';
         }
         return null;
       },
@@ -199,7 +472,7 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
         fontSize: 16,
       ),
       decoration: InputDecoration(
-        hintText: 'What do you need to do?',
+        hintText: 'What do you need to do? (Optional if you add voice/image)',
         hintStyle: TextStyle(
           color: AppColors.getSubtitleColor(context).withOpacity(0.5),
           fontSize: 14,
@@ -862,12 +1135,18 @@ class _CreateTodoScreenState extends State<CreateTodoScreen> {
       final provider = Provider.of<TodoProvider>(context, listen: false);
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
 
+      // Use content if available, otherwise use placeholder
+      final content = _contentController.text.trim().isEmpty 
+          ? (_voicePath != null ? 'Voice Note' : 'Image Note')
+          : _contentController.text.trim();
+
       final todo = TodoModel(
         id: _isEditMode ? _existingTodo!.id : 'todo_${DateTime.now().millisecondsSinceEpoch}',
-        content: _contentController.text.trim(),
+        content: content,
         priority: _selectedPriority,
         endTime: _endTime,
         createdAt: _isEditMode ? _existingTodo!.createdAt : DateTime.now(),
+        reminderMinutes: _selectedReminders,
         voicePath: _voicePath,
         imagePath: _imagePath,
         status: _isEditMode ? _existingTodo!.status : 'pending',

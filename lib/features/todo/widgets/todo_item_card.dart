@@ -325,7 +325,7 @@ class _TodoItemCardState extends State<TodoItemCard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (widget.onEdit != null) ...[
+          if (widget.onEdit != null && widget.onDone != null) ...[
             _buildActionButton(
               label: 'Edit',
               color: AppColors.purpleGradientStart,

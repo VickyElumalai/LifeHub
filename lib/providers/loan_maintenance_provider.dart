@@ -1,84 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:life_hub/data/models/loan_maintenance_model.dart';
-import 'package:life_hub/data/local/hive_service.dart';
-import 'package:life_hub/data/local/notification_service.dart';
+import 'package:life_hub/data/service/hive_service.dart';
+import 'package:life_hub/data/service/notification_service.dart';
 
 class LoanMaintenanceProvider extends ChangeNotifier {
   List<LoanMaintenanceModel> _itemList = [];
   
   List<LoanMaintenanceModel> get itemList => _itemList;
+
   
-  // Loan getters
+  
+  // Loans - separate active and overdue
   List<LoanMaintenanceModel> get activeLoans => _itemList
-      .where((item) => item.isLoan && item.status == 'active')
+      .where((item) => item.isLoan && item.status == 'active' && !item.isOverdue)
       .toList()
       ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
   
-  List<LoanMaintenanceModel> get completedLoans => _itemList
-      .where((item) => item.isLoan && item.status == 'completed')
+  List<LoanMaintenanceModel> get overdueLoans => _itemList
+      .where((item) => item.isLoan && item.status == 'active' && item.isOverdue)
       .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
   
+  // Maintenance - separate active and overdue
+  List<LoanMaintenanceModel> get activeMaintenance => _itemList
+      .where((item) => item.isMaintenance && item.status == 'active' && !item.isOverdue)
+      .toList()
+      ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+  
+  List<LoanMaintenanceModel> get overdueMaintenance => _itemList
+      .where((item) => item.isMaintenance && item.status == 'active' && item.isOverdue)
+      .toList()
+      ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+  
+  // Stats for loans
   int get totalActiveLoans => activeLoans.length;
+  int get totalOverdueLoans => overdueLoans.length;
   
-  double get totalLoanAmount => activeLoans.fold(
-    0.0, 
+  double get totalLoanAmount => [...activeLoans, ...overdueLoans].fold(
+    0.0,
     (sum, loan) => sum + (loan.totalAmount ?? 0),
   );
   
-  double get totalLoanPaid => activeLoans.fold(
-    0.0, 
+  double get totalLoanPaid => [...activeLoans, ...overdueLoans].fold(
+    0.0,
     (sum, loan) => sum + loan.totalPaid,
   );
   
   double get totalLoanRemaining => totalLoanAmount - totalLoanPaid;
   
-  // Maintenance getters
-  List<LoanMaintenanceModel> get activeMaintenance => _itemList
-      .where((item) => item.isMaintenance && item.status == 'active')
-      .toList()
-      ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
-  
-  List<LoanMaintenanceModel> get completedMaintenance => _itemList
-      .where((item) => item.isMaintenance && item.status == 'completed')
-      .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  
+  // Stats for maintenance
   int get totalActiveMaintenance => activeMaintenance.length;
-  
-  // Common getters
-  int get totalPending => _itemList
-      .where((item) => item.status == 'active')
-      .length;
-  
-  int get totalOverdue => _itemList
-      .where((item) => item.isOverdue)
-      .length;
-  
-  List<LoanMaintenanceModel> get dueSoonItems => _itemList
-      .where((item) {
-        final now = DateTime.now();
-        final daysUntilDue = item.nextDueDate.difference(now).inDays;
-        return item.status == 'active' && daysUntilDue <= 7 && daysUntilDue >= 0;
-      })
-      .toList()
-      ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+  int get totalOverdueMaintenance => overdueMaintenance.length;
+
+  int get totalCount => totalActiveLoans + totalActiveMaintenance;
 
   LoanMaintenanceProvider() {
-    loadData();
+    loadItemData();
   }
 
-  List<LoanMaintenanceModel> getActiveLoansByCategory(String category) {
-    if (category == 'all') return activeLoans;
-    return activeLoans.where((item) => item.category == category).toList();
-  }
-
-  List<LoanMaintenanceModel> getActiveMaintenanceByCategory(String category) {
-    if (category == 'all') return activeMaintenance;
-    return activeMaintenance.where((item) => item.category == category).toList();
-  }
-
-  Future<void> loadData() async {
+  Future<void> loadItemData() async {
     try {
       final data = await HiveService.getAllData('loanMaintenanceBox');
       _itemList = data
@@ -93,48 +73,261 @@ class LoanMaintenanceProvider extends ChangeNotifier {
 
   Future<void> addItem(LoanMaintenanceModel item, {bool enableNotifications = true}) async {
     try {
-      debugPrint('📝 Adding ${item.type}: ${item.title}');
-      
       await HiveService.saveData('loanMaintenanceBox', item.id, item.toJson());
       _itemList.add(item);
       _itemList.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
       
-      // Schedule notification if enabled and active
+      // Schedule notification if enabled
       if (enableNotifications && item.status == 'active') {
-        await _scheduleNotification(item);
+        await NotificationService.scheduleLoanMaintenanceNotification(
+          id: item.id,
+          title: item.isLoan ? 'Loan Payment Reminder' : 'Maintenance Reminder',
+          content: item.title,
+          scheduledTime: item.nextDueDate,
+          reminderDays: item.reminderDays,
+        );
       }
       
       notifyListeners();
     } catch (e) {
       debugPrint('Error adding item: $e');
-      rethrow;
     }
   }
 
   Future<void> updateItem(LoanMaintenanceModel item, {bool enableNotifications = true}) async {
     try {
-      debugPrint('📝 Updating ${item.type}: ${item.title}');
-      
       await HiveService.saveData('loanMaintenanceBox', item.id, item.toJson());
       final index = _itemList.indexWhere((i) => i.id == item.id);
       if (index != -1) {
         _itemList[index] = item;
         _itemList.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
         
-        // Cancel existing notifications
+        // Update notification
         await NotificationService.cancelNotification(item.id);
-        await NotificationService.cancelNotification('${item.id}_reminder');
-        
-        // Schedule new notification if active
         if (enableNotifications && item.status == 'active') {
-          await _scheduleNotification(item);
+          await NotificationService.scheduleLoanMaintenanceNotification(
+            id: item.id,
+            title: item.isLoan ? 'Loan Payment Reminder' : 'Maintenance Reminder',
+            content: item.title,
+            scheduledTime: item.nextDueDate,
+            reminderDays: item.reminderDays,
+          );
         }
         
         notifyListeners();
       }
     } catch (e) {
       debugPrint('Error updating item: $e');
+    }
+  }
+
+  // Mark loan payment as completed - AUTO-CALCULATES NEXT DUE DATE
+  Future<void> markLoanAsPaid({
+    required String loanId,
+    required double amount,
+    String? notes,
+  }) async {
+    try {
+      final index = _itemList.indexWhere((item) => item.id == loanId);
+      if (index == -1) return;
+      
+      final loan = _itemList[index];
+      if (!loan.isLoan) return;
+      
+      debugPrint('💰 Recording loan payment for: ${loan.title}');
+      
+      // Create new payment record
+      final payment = PaymentRecord(
+        id: 'payment_${DateTime.now().millisecondsSinceEpoch}',
+        amount: amount,
+        paidDate: DateTime.now(),
+        monthNumber: loan.completedMonths + 1,
+        isPaid: true,
+        notes: notes,
+      );
+      
+      // Calculate next due date based on paymentDay
+      DateTime nextDue;
+      if (loan.paymentDay != null) {
+        final now = DateTime.now();
+        int targetMonth = now.month + 1;
+        int targetYear = now.year;
+        
+        if (targetMonth > 12) {
+          targetMonth = 1;
+          targetYear++;
+        }
+        
+        // Handle day overflow (e.g., Feb 30 -> Feb 28)
+        final lastDayOfMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+        final actualDay = loan.paymentDay! > lastDayOfMonth 
+            ? lastDayOfMonth 
+            : loan.paymentDay!;
+        
+        nextDue = DateTime(targetYear, targetMonth, actualDay);
+      } else {
+        // Fallback: add 30 days
+        nextDue = DateTime.now().add(const Duration(days: 30));
+      }
+      
+      // Check if loan is completed
+      final newCompletedMonths = loan.completedMonths + 1;
+      final newStatus = (loan.totalMonths != null && newCompletedMonths >= loan.totalMonths!)
+          ? 'completed'
+          : 'active';
+      
+      // Update loan
+      final updatedLoan = loan.copyWith(
+        completedMonths: newCompletedMonths,
+        nextDueDate: nextDue,
+        paymentHistory: [...loan.paymentHistory, payment],
+        status: newStatus,
+      );
+      
+      // Save to Hive FIRST
+      await HiveService.saveData('loanMaintenanceBox', updatedLoan.id, updatedLoan.toJson());
+      
+      // Update local list IMMEDIATELY
+      _itemList[index] = updatedLoan;
+      
+      // Sort list
+      _itemList.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+      
+      // Update notification
+      await NotificationService.cancelNotification(updatedLoan.id);
+      if (newStatus == 'active') {
+        await NotificationService.scheduleLoanMaintenanceNotification(
+          id: updatedLoan.id,
+          title: 'Loan Payment Reminder',
+          content: updatedLoan.title,
+          scheduledTime: updatedLoan.nextDueDate,
+          reminderDays: updatedLoan.reminderDays,
+        );
+      }
+      
+      // Force UI update IMMEDIATELY
+      notifyListeners();
+      
+      debugPrint('✅ Loan payment recorded successfully');
+      debugPrint('   Completed: $newCompletedMonths/${loan.totalMonths}');
+      debugPrint('   Next due: $nextDue');
+      debugPrint('   Status: $newStatus');
+      
+    } catch (e) {
+      debugPrint('❌ Error marking loan as paid: $e');
       rethrow;
+    }
+  }
+
+  // Mark maintenance as completed - DOES NOT REMOVE, JUST UPDATES HISTORY
+  Future<void> markMaintenanceAsCompleted({
+    required String maintenanceId,
+    String? notes,
+  }) async {
+    try {
+      final index = _itemList.indexWhere((item) => item.id == maintenanceId);
+      if (index != -1) {
+        final maintenance = _itemList[index];
+        
+        if (!maintenance.isMaintenance) return;
+        
+        // Create maintenance completion record
+        final completionRecord = PaymentRecord(
+          id: 'maintenance_${DateTime.now().millisecondsSinceEpoch}',
+          amount: 0.0, // No amount for maintenance
+          paidDate: DateTime.now(),
+          monthNumber: maintenance.paymentHistory.length + 1,
+          isPaid: true,
+          notes: notes,
+        );
+        
+        // Calculate next due date based on recurrence
+        DateTime? nextDue;
+        String newStatus = maintenance.status;
+        
+        if (maintenance.recurrence == 'none') {
+          // One-time maintenance - mark as completed (will be removed from active list)
+          newStatus = 'completed';
+          nextDue = maintenance.nextDueDate; // Keep same date
+        } else {
+          // Recurring maintenance - calculate next occurrence
+          switch (maintenance.recurrence) {
+            case 'monthly':
+              nextDue = DateTime(
+                maintenance.nextDueDate.year,
+                maintenance.nextDueDate.month + 1,
+                maintenance.nextDueDate.day,
+              );
+              break;
+            case 'quarterly':
+              nextDue = DateTime(
+                maintenance.nextDueDate.year,
+                maintenance.nextDueDate.month + 3,
+                maintenance.nextDueDate.day,
+              );
+              break;
+            case 'halfyearly':
+              nextDue = DateTime(
+                maintenance.nextDueDate.year,
+                maintenance.nextDueDate.month + 6,
+                maintenance.nextDueDate.day,
+              );
+              break;
+            case 'yearly':
+              nextDue = DateTime(
+                maintenance.nextDueDate.year + 1,
+                maintenance.nextDueDate.month,
+                maintenance.nextDueDate.day,
+              );
+              break;
+            case 'custom':
+              if (maintenance.customRecurrenceDays != null) {
+                nextDue = maintenance.nextDueDate.add(
+                  Duration(days: maintenance.customRecurrenceDays!),
+                );
+              }
+              break;
+          }
+        }
+        
+        if (nextDue != null) {
+          final updatedMaintenance = maintenance.copyWith(
+            nextDueDate: nextDue,
+            lastDoneDate: DateTime.now(),
+            paymentHistory: [...maintenance.paymentHistory, completionRecord],
+            status: newStatus,
+          );
+          
+          // CRITICAL: Save to Hive first
+          await HiveService.saveData('loanMaintenanceBox', updatedMaintenance.id, updatedMaintenance.toJson());
+          
+          // CRITICAL: Update local list immediately
+          _itemList[index] = updatedMaintenance;
+          _itemList.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+          
+          // Update notification
+          await NotificationService.cancelNotification(updatedMaintenance.id);
+          if (newStatus == 'active') {
+            await NotificationService.scheduleLoanMaintenanceNotification(
+              id: updatedMaintenance.id,
+              title: 'Maintenance Reminder',
+              content: updatedMaintenance.title,
+              scheduledTime: updatedMaintenance.nextDueDate,
+              reminderDays: updatedMaintenance.reminderDays,
+            );
+          }
+          
+          // CRITICAL: Force UI update
+          notifyListeners();
+          
+          debugPrint('✅ Maintenance completed: ${updatedMaintenance.title}');
+          debugPrint('   Next due: ${updatedMaintenance.nextDueDate}');
+          debugPrint('   Status: ${updatedMaintenance.status}');
+          debugPrint('   History count: ${updatedMaintenance.paymentHistory.length}');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error marking maintenance as completed: $e');
     }
   }
 
@@ -142,261 +335,10 @@ class LoanMaintenanceProvider extends ChangeNotifier {
     try {
       await HiveService.deleteData('loanMaintenanceBox', id);
       await NotificationService.cancelNotification(id);
-      await NotificationService.cancelNotification('${id}_reminder');
       _itemList.removeWhere((item) => item.id == id);
       notifyListeners();
     } catch (e) {
       debugPrint('Error deleting item: $e');
-    }
-  }
-
-  // Record loan payment
-  Future<void> recordLoanPayment({
-    required String loanId,
-    required double amount,
-    required String paymentMethod,
-    String? transactionId,
-    String? notes,
-  }) async {
-    try {
-      final index = _itemList.indexWhere((item) => item.id == loanId);
-      if (index != -1) {
-        final loan = _itemList[index];
-        
-        // Create new payment
-        final payment = PaymentModel(
-          id: 'payment_${DateTime.now().millisecondsSinceEpoch}',
-          parentId: loanId,
-          amount: amount,
-          dueDate: loan.nextDueDate,
-          paidDate: DateTime.now(),
-          status: 'paid',
-          transactionId: transactionId,
-          paymentMethod: paymentMethod,
-          notes: notes,
-          createdAt: DateTime.now(),
-          monthNumber: loan.completedMonths + 1,
-        );
-        
-        // Add payment to list
-        final updatedPayments = List<PaymentModel>.from(loan.payments)..add(payment);
-        
-        // Calculate next due date
-        DateTime newNextDueDate;
-        if (loan.paymentDay != null) {
-          // Use specific payment day
-          final now = DateTime.now();
-          newNextDueDate = DateTime(
-            now.month == 12 ? now.year + 1 : now.year,
-            now.month == 12 ? 1 : now.month + 1,
-            loan.paymentDay!.clamp(1, 31),
-          );
-        } else {
-          // Add 30 days
-          newNextDueDate = DateTime.now().add(const Duration(days: 30));
-        }
-        
-        // Check if loan is completed
-        String newStatus = loan.status;
-        if (loan.totalMonths != null && updatedPayments.length >= loan.totalMonths!) {
-          newStatus = 'completed';
-        }
-        
-        final updatedLoan = loan.copyWith(
-          payments: updatedPayments,
-          nextDueDate: newNextDueDate,
-          status: newStatus,
-        );
-        
-        // Check if notifications are enabled
-        final notificationsEnabled = await HiveService.getData('settingsBox', 'notifications') ?? true;
-        
-        await updateItem(updatedLoan, enableNotifications: notificationsEnabled && newStatus == 'active');
-      }
-    } catch (e) {
-      debugPrint('Error recording loan payment: $e');
-      rethrow;
-    }
-  }
-
-  // Mark maintenance as completed
-  Future<void> markMaintenanceAsCompleted(String id) async {
-    try {
-      final index = _itemList.indexWhere((item) => item.id == id);
-      if (index != -1) {
-        final maintenance = _itemList[index];
-        
-        // Cancel current notifications
-        await NotificationService.cancelNotification(id);
-        await NotificationService.cancelNotification('${id}_reminder');
-        
-        // Calculate next due date based on recurrence
-        DateTime newNextDueDate;
-        String newStatus = maintenance.status;
-        
-        switch (maintenance.recurrence) {
-          case 'monthly':
-            newNextDueDate = DateTime(
-              DateTime.now().year,
-              DateTime.now().month + 1,
-              DateTime.now().day,
-            );
-            break;
-          case 'quarterly':
-            newNextDueDate = DateTime(
-              DateTime.now().year,
-              DateTime.now().month + 3,
-              DateTime.now().day,
-            );
-            break;
-          case 'halfyearly':
-            newNextDueDate = DateTime(
-              DateTime.now().year,
-              DateTime.now().month + 6,
-              DateTime.now().day,
-            );
-            break;
-          case 'yearly':
-            newNextDueDate = DateTime(
-              DateTime.now().year + 1,
-              DateTime.now().month,
-              DateTime.now().day,
-            );
-            break;
-          case 'custom':
-            if (maintenance.customRecurrenceDays != null) {
-              newNextDueDate = DateTime.now().add(
-                Duration(days: maintenance.customRecurrenceDays!),
-              );
-            } else {
-              newNextDueDate = DateTime.now().add(const Duration(days: 30));
-            }
-            break;
-          case 'none':
-          default:
-            // For non-recurring, mark as completed
-            newStatus = 'completed';
-            newNextDueDate = maintenance.nextDueDate;
-        }
-        
-        final updatedMaintenance = maintenance.copyWith(
-          status: newStatus,
-          lastDoneDate: DateTime.now(),
-          nextDueDate: newNextDueDate,
-        );
-        
-        // Check if notifications are enabled
-        final notificationsEnabled = await HiveService.getData('settingsBox', 'notifications') ?? true;
-        
-        await updateItem(updatedMaintenance, enableNotifications: notificationsEnabled && newStatus == 'active');
-      }
-    } catch (e) {
-      debugPrint('Error marking maintenance as completed: $e');
-      rethrow;
-    }
-  }
-
-  Future<void> _scheduleNotification(LoanMaintenanceModel item) async {
-    try {
-      final now = DateTime.now();
-      final dueDate = item.nextDueDate;
-      
-      if (item.isLoan) {
-        // For loans: Notify 3 days before and on due date at 9 AM
-        final threeDaysBefore = DateTime(
-          dueDate.year,
-          dueDate.month,
-          dueDate.day - 3,
-          9,
-          0,
-        );
-        final onDueDate = DateTime(
-          dueDate.year,
-          dueDate.month,
-          dueDate.day,
-          9,
-          0,
-        );
-        
-        debugPrint('💰 Scheduling loan notifications for: ${item.title}');
-        debugPrint('   Due date: $dueDate');
-        
-        // Calculate expected payment amount
-        String amountText = '';
-        if (item.averagePayment > 0) {
-          amountText = ' - ₹${item.averagePayment.toStringAsFixed(0)}';
-        } else if (item.totalAmount != null && item.totalMonths != null) {
-          final avgPayment = item.totalAmount! / item.totalMonths!;
-          amountText = ' - ₹${avgPayment.toStringAsFixed(0)}';
-        }
-        
-        if (threeDaysBefore.isAfter(now)) {
-          debugPrint('   3-day reminder: $threeDaysBefore');
-          await NotificationService.scheduleTaskNotification(
-            id: '${item.id}_reminder',
-            title: '💰 Loan Payment Due in 3 Days',
-            content: '${item.title}$amountText',
-            scheduledTime: threeDaysBefore,
-          );
-        }
-        
-        if (onDueDate.isAfter(now)) {
-          debugPrint('   Due date reminder: $onDueDate');
-          final monthInfo = item.totalMonths != null
-              ? ' - Month ${item.completedMonths + 1}/${item.totalMonths}'
-              : '';
-          await NotificationService.scheduleTaskNotification(
-            id: item.id,
-            title: '💸 Loan Payment Due Today!',
-            content: '${item.title}$amountText$monthInfo',
-            scheduledTime: onDueDate,
-          );
-        }
-      } else {
-        // For maintenance: Use reminderDays (default: 1 day before) and on due date
-        final reminderDays = item.reminderDays ?? 1;
-        final reminderDate = DateTime(
-          dueDate.year,
-          dueDate.month,
-          dueDate.day - reminderDays,
-          9,
-          0,
-        );
-        final onDueDate = DateTime(
-          dueDate.year,
-          dueDate.month,
-          dueDate.day,
-          9,
-          0,
-        );
-        
-        debugPrint('🔧 Scheduling maintenance notifications for: ${item.title}');
-        debugPrint('   Due date: $dueDate');
-        
-        if (reminderDate.isAfter(now)) {
-          debugPrint('   Reminder: $reminderDate ($reminderDays days before)');
-          await NotificationService.scheduleTaskNotification(
-            id: '${item.id}_reminder',
-            title: '🔧 Maintenance Due in $reminderDays Day${reminderDays > 1 ? 's' : ''}',
-            content: '${item.title}${item.maintenanceType != null ? ' - ${item.maintenanceType}' : ''}',
-            scheduledTime: reminderDate,
-          );
-        }
-        
-        if (onDueDate.isAfter(now)) {
-          debugPrint('   Due date reminder: $onDueDate');
-          await NotificationService.scheduleTaskNotification(
-            id: item.id,
-            title: '⚠️ Maintenance Due Today!',
-            content: '${item.title} - ${item.category.toUpperCase()}',
-            scheduledTime: onDueDate,
-          );
-        }
-      }
-      
-      debugPrint('✅ Notifications scheduled successfully');
-    } catch (e) {
-      debugPrint('❌ Failed to schedule notification: $e');
     }
   }
 

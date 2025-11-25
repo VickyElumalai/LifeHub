@@ -2,8 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 
-// ⚠️ CRITICAL: This callback MUST be a top-level function (not inside a class)
 // WorkManager will call this function in the background
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -66,13 +67,13 @@ class NotificationService {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    // Initialize WorkManager with the callback dispatcher
+    tz.initializeTimeZones();
+
     await Workmanager().initialize(
       callbackDispatcher,
       isInDebugMode: false, // Set to false for production
     );
 
-    // Initialize local notifications
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -90,7 +91,6 @@ class NotificationService {
     _initialized = true;
   }
 
-  /// Schedule a notification for a task
   /// This will work even when the app is closed or phone is sleeping
   static Future<void> scheduleTaskNotification({
     required String id,
@@ -100,21 +100,14 @@ class NotificationService {
   }) async {
     await initialize();
 
-    // Calculate notification time (1 minute before due time)
-    final notificationTime = scheduledTime.subtract(const Duration(minutes: 1));
-    
-    // Check if time is in the future
+    final notificationTime = scheduledTime.subtract(const Duration(minutes: 1));    
     if (notificationTime.isBefore(DateTime.now())) {
       return;
     }
 
-    // Calculate the delay from now
     final delay = notificationTime.difference(DateTime.now());
     
-    // Create a unique task name using the task ID
     final taskName = 'notification_$id';
-
-    // Schedule the one-time background task
     await Workmanager().registerOneOffTask(
       taskName,
       taskName,
@@ -122,7 +115,7 @@ class NotificationService {
       inputData: {
         'title': title,
         'content': content,
-        'id': id.hashCode.abs() % 2147483647, // Ensure it's a valid int
+        'id': id.hashCode.abs() % 2147483647, 
       },
       constraints: Constraints(
         networkType: NetworkType.notRequired,
@@ -134,58 +127,72 @@ class NotificationService {
     );
   }
 
-  static Future<void> scheduleBillNotification({
+  static Future<void> scheduleLoanMaintenanceNotification({
     required String id,
     required String title,
     required String content,
     required DateTime scheduledTime,
+    required int reminderDays,
   }) async {
-    final now = DateTime.now();
+    await initialize();
 
-    if (scheduledTime.isBefore(now)) {
-      print('⚠️ Bill notification time is in the past, skipping');
+    // Schedule notification X days before at 9 AM
+    final notificationTime = DateTime(
+      scheduledTime.year,
+      scheduledTime.month,
+      scheduledTime.day - reminderDays,
+      9, // 9 AM
+      0,
+    );
+    
+    // Only schedule if notification time is in the future
+    if (notificationTime.isBefore(DateTime.now())) {
+      print('Loan/Maintenance notification time is in the past, not scheduling');
       return;
     }
 
-    final delay = scheduledTime.difference(now);
+    print('Scheduling loan/maintenance notification for: $notificationTime');
+    print('Reminder: $reminderDays days before due date');
 
-    print('💰 Scheduling bill notification:');
-    print('   ID: $id');
-    print('   Time: $scheduledTime');
-    print('   Delay: ${delay.inHours}h');
+    // 🔧 FIX: Use WorkManager instead of zonedSchedule for reliability
+    final delay = notificationTime.difference(DateTime.now());
+    final taskName = 'loan_maintenance_$id';
 
     await Workmanager().registerOneOffTask(
-      'bill_$id',
-      'billNotification',
+      taskName,
+      taskName,
       initialDelay: delay,
       inputData: {
-        'id': id.hashCode,
         'title': title,
-        'body': content,
-        'type': 'bill',
+        'content': '$content - Due in $reminderDays days',
+        'id': id.hashCode.abs() % 2147483647,
       },
+      constraints: Constraints(
+        networkType: NetworkType.notRequired,
+        requiresBatteryNotLow: false,
+        requiresCharging: false,
+        requiresDeviceIdle: false,
+        requiresStorageNotLow: false,
+      ),
     );
-
-    print('✅ Bill notification scheduled');
   }
 
 
   static Future<void> scheduleReminder({
-    required String reminderId,      // unique per reminder (eventId_reminderIndex)
+    required String reminderId,      
     required String title,
     required String body,
-    required DateTime fireAt,        // exact DateTime the notification should appear
+    required DateTime fireAt,        
   }) async {
     await initialize();
 
-    // Do not schedule past dates
     if (fireAt.isBefore(DateTime.now())) return;
 
     final delay = fireAt.difference(DateTime.now());
 
     await Workmanager().registerOneOffTask(
-      reminderId,                 // unique task name
-      'event_reminder_task',      // **same** for all reminders (required by Workmanager)
+      reminderId,                 
+      'event_reminder_task',     
       initialDelay: delay,
       inputData: {
         'title': title,
@@ -202,39 +209,26 @@ class NotificationService {
     );
   }
 
-  /// Cancel a scheduled notification
   static Future<void> cancelNotification(String id) async {
-    final taskName = 'notification_$id';
-    await Workmanager().cancelByUniqueName(taskName);
+    final taskName1 = 'notification_$id';
+    final taskName2 = 'loan_maintenance_$id';    
+    try {
+      await Workmanager().cancelByUniqueName(taskName1);
+    } catch (e) {
+    }
+    
+    try {
+      await Workmanager().cancelByUniqueName(taskName2);
+    } catch (e) {
+    }
   }
 
-  /// Cancel all scheduled notifications
   static Future<void> cancelAllNotifications() async {
     await Workmanager().cancelAll();
     await _notifications.cancelAll();
   }
 
-  /// Show an immediate test notification (for testing purposes)
-  static Future<void> showTestNotification() async {
-    await initialize();
-    
-    await _notifications.show(
-      999999,
-      '🔔 Test Notification',
-      'If you see this, notifications are working!',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'task_reminders',
-          'Task Reminders',
-          channelDescription: 'Notifications for upcoming tasks',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-        ),
-      ),
-    );
-  }
+  
   static Future<void> scheduleMaintenanceNotification({
       required String id,
       required String title,
@@ -261,7 +255,7 @@ class NotificationService {
         0,
       );
 
-      print('🔧 Scheduling maintenance notifications:');
+      print(' Scheduling maintenance notifications:');
       print('   ID: $id');
       print('   Due date: $scheduledTime');
 
@@ -276,7 +270,7 @@ class NotificationService {
           initialDelay: delay1Day,
           inputData: {
             'id': '${id}_1day'.hashCode,
-            'title': '⚠️ Maintenance Due Tomorrow',
+            'title': ' Maintenance Due Tomorrow',
             'body': content,
             'type': 'maintenance',
           },
@@ -294,13 +288,13 @@ class NotificationService {
           initialDelay: delayDueDate,
           inputData: {
             'id': id.hashCode,
-            'title': '🔧 Maintenance Due Today!',
+            'title': ' Maintenance Due Today!',
             'body': content,
             'type': 'maintenance',
           },
         );
       }
 
-      print('✅ Maintenance notifications scheduled');
+      print(' Maintenance notifications scheduled');
     }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:life_hub/data/local/hive_service.dart';
+import 'package:life_hub/data/service/hive_service.dart';
 
 class SettingsProvider extends ChangeNotifier {
   bool _notificationsEnabled = true;

@@ -10,7 +10,7 @@ import 'package:life_hub/providers/theme_provider.dart';
 import 'package:life_hub/providers/settings_provider.dart';
 import 'package:life_hub/providers/profile_provider.dart';
 import 'package:life_hub/features/dashboard/screens/dashboard_screen.dart';
-import 'package:life_hub/data/local/notification_service.dart';
+import 'package:life_hub/data/service/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

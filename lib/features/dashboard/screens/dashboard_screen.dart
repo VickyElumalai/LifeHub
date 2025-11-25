@@ -182,7 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisCount: 2,
           mainAxisSpacing: 15,
           crossAxisSpacing: 15,
-          childAspectRatio: 1.1,
+          childAspectRatio: 0.9,
           children: [
             DashboardCard(
               icon: Image.asset(
@@ -228,8 +228,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 height: 30,
                 width: 30,
               ),
-              title: AppStrings.maintenance,
-              count: '',
+              title: 'Loans & Maintenance',
+              count: '${maintenanceProvider.totalCount} active items',
               gradientColors: const [
                 AppColors.pinkGradientStart,
                 AppColors.pinkGradientEnd,

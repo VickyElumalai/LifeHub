@@ -16,8 +16,6 @@ class EventItemCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -29,7 +27,7 @@ class EventItemCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
           border: Border.all(
-            color: AppColors.blueGradientStart.withOpacity(0.3),
+            color: _getRecurrenceColor().withOpacity(0.3),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(16),
@@ -208,28 +206,40 @@ class EventItemCard extends StatelessWidget {
     );
   }
 
+  // Get color based on recurrence type
+  Color _getRecurrenceColor() {
+    switch (event.recurrence) {
+      case Recurrence.once:
+        return AppColors.purpleGradientStart;
+      case Recurrence.daily:
+        return AppColors.greenGradientStart;
+      case Recurrence.yearly:
+        return const Color(0xFFFF6B6B); // Orange/Red
+    }
+  }
+
   Widget _buildRecurrenceBadge() {
     Color color;
     IconData icon;
     String label;
     
     switch (event.recurrence) {
-    case Recurrence.daily:
-      color = AppColors.greenGradientStart;
-      icon = Icons.repeat;
-      label = 'DAILY';
-      break;
-    case Recurrence.weekly:
-      color = AppColors.yellowGradientStart;
-      icon = Icons.calendar_today;
-      label = 'WEEKLY';
-      break;
-    case Recurrence.once:
-    default:
-      color = AppColors.purpleGradientStart;
-      icon = Icons.event;
-      label = 'ONCE';
-  }
+      case Recurrence.once:
+        color = AppColors.purpleGradientStart;
+        icon = Icons.event;
+        label = 'ONCE';
+        break;
+      case Recurrence.daily:
+        color = AppColors.greenGradientStart;
+        icon = Icons.repeat;
+        label = 'DAILY';
+        break;
+      case Recurrence.yearly:
+        color = const Color(0xFFFF6B6B); // Orange/Red gradient
+        icon = Icons.calendar_month;
+        label = 'YEARLY';
+        break;
+    }
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

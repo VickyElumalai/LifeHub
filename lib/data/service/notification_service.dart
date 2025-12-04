@@ -140,9 +140,7 @@ class NotificationService {
     final notificationTime = DateTime(
       scheduledTime.year,
       scheduledTime.month,
-      scheduledTime.day - reminderDays,
-      9, // 9 AM
-      0,
+      scheduledTime.day - reminderDays,8,  0,
     );
     
     // Only schedule if notification time is in the future

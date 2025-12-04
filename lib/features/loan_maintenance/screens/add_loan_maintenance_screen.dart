@@ -46,15 +46,18 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialType != null) {
-      _selectedType = widget.initialType!;
-    }
-    if (widget.itemId != null) {
-      _loadExistingItem();
-    }
+    
     _reminderDaysController.text = '3';
     _completedMonthsController.text = '0';
     _alreadyPaidController.text = '0';
+    
+    if (widget.initialType != null) {
+      _selectedType = widget.initialType!;
+    }
+    
+    if (widget.itemId != null) {
+      _loadExistingItem();
+    }
   }
 
   void _loadExistingItem() {

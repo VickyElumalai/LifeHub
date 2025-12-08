@@ -85,7 +85,7 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
           _alreadyPaidController.text = item.totalPaid.toStringAsFixed(0);
           _selectedDueDay = item.paymentDay;
           
-          if (item.completedMonths > 0) {
+          if (item.completedMonths > 0 || item.totalPaid > 0) {
             _isExistingLoan = true;
           }
         } else {
@@ -1121,27 +1121,46 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
   // Calculate next due date based on payment day
   DateTime _calculateNextDueDate(int dueDay, int completedMonths) {
     final now = DateTime.now();
+    if (completedMonths == 0) {
+      if (now.day > dueDay) {
+        int targetMonth = now.month + 1;
+        int targetYear = now.year;
+        
+        if (targetMonth > 12) {
+          targetMonth = 1;
+          targetYear++;
+        }
+        
+        final lastDayOfMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+        final actualDay = dueDay > lastDayOfMonth ? lastDayOfMonth : dueDay;
+        
+        final result = DateTime(targetYear, targetMonth, actualDay);
+        debugPrint('  Next due (new loan, day passed this month): $result');
+        return result;
+      } else {
+        // Due day NOT passed - use this month
+        final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
+        final actualDay = dueDay > lastDayOfMonth ? lastDayOfMonth : dueDay;
+        
+        final result = DateTime(now.year, now.month, actualDay);
+        debugPrint('  Next due (new loan, use this month): $result');
+        return result;
+      }
+    }
     
-    // Start from current month
-    int targetMonth = now.month + completedMonths;
+    int targetMonth = now.month + 1;
     int targetYear = now.year;
     
-    // Handle year overflow
-    while (targetMonth > 12) {
-      targetMonth -= 12;
+    if (targetMonth > 12) {
+      targetMonth = 1;
       targetYear++;
     }
     
-    // Handle day overflow (e.g., Feb 30 -> Feb 28/29)
-    int actualDay = dueDay;
     final lastDayOfMonth = DateTime(targetYear, targetMonth + 1, 0).day;
-    if (dueDay > lastDayOfMonth) {
-      actualDay = lastDayOfMonth;
-    }
+    final actualDay = dueDay > lastDayOfMonth ? lastDayOfMonth : dueDay;
     
     var nextDue = DateTime(targetYear, targetMonth, actualDay);
     
-    // If the date is in the past, move to next month
     if (nextDue.isBefore(now) || nextDue.isAtSameMomentAs(now)) {
       targetMonth++;
       if (targetMonth > 12) {
@@ -1150,15 +1169,13 @@ class _AddLoanMaintenanceScreenState extends State<AddLoanMaintenanceScreen> {
       }
       
       final lastDayOfNextMonth = DateTime(targetYear, targetMonth + 1, 0).day;
-      if (dueDay > lastDayOfNextMonth) {
-        actualDay = lastDayOfNextMonth;
-      } else {
-        actualDay = dueDay;
-      }
+      final adjustedDay = dueDay > lastDayOfNextMonth ? lastDayOfNextMonth : dueDay;
+      nextDue = DateTime(targetYear, targetMonth, adjustedDay);
       
-      nextDue = DateTime(targetYear, targetMonth, actualDay);
+      debugPrint('    Date was in past, moved forward to: $nextDue');
     }
     
+    debugPrint('  Next due (existing loan): $nextDue');
     return nextDue;
   }
 

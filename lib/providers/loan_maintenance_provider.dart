@@ -64,12 +64,15 @@ class LoanMaintenanceProvider extends ChangeNotifier {
       _itemList = data
           .map((item) => LoanMaintenanceModel.fromJson(Map<String, dynamic>.from(item)))
           .toList();
+      
       _itemList.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
       notifyListeners();
+      
+      debugPrint(' Loaded ${_itemList.length} items from storage');
     } catch (e) {
-      debugPrint('Error loading loan/maintenance data: $e');
+      debugPrint(' Error loading loan/maintenance data: $e');
     }
-  }
+}
 
   Future<void> addItem(LoanMaintenanceModel item, {bool enableNotifications = true}) async {
     try {

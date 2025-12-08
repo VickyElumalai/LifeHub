@@ -142,19 +142,21 @@ class EventProvider extends ChangeNotifier {
   
   Future<void> updateEvent(EventModel event, {bool enableNotifications = true}) async {
     try {
-      await HiveService.saveData('eventBox', event.id, event.toJson());
+      debugPrint(' Updating event: ${event.title}');
+      
+      await HiveService.saveData('eventBox', event.id, event.toJson());      
       final index = _eventList.indexWhere((item) => item.id == event.id);
       if (index != -1) {
         _eventList[index] = event;
         _eventList.sort((a, b) => a.dateTime.compareTo(b.dateTime));
         
-        // Cancel old notifications and schedule new ones
         await _cancelEventReminders(event.id);
         if (enableNotifications && event.reminderMinutes.isNotEmpty) {
           await _scheduleEventReminders(event);
         }
         
         notifyListeners();
+        debugPrint('Event updated successfully');
       }
     } catch (e) {
       debugPrint('Error updating event: $e');

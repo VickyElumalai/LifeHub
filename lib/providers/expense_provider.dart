@@ -4,34 +4,48 @@ import 'package:life_hub/data/service/hive_service.dart';
 
 class ExpenseProvider extends ChangeNotifier {
   List<ExpenseModel> _expenseList = [];
-  double _monthlyBudget = 3000.0;
+  double _monthlyBudget = 10000.0;
   
   List<ExpenseModel> get expenseList => _expenseList;
   double get monthlyBudget => _monthlyBudget;
   
+  List<ExpenseModel> get regularExpenses => _expenseList
+      .where((e) => e.isExpense)
+      .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  
+  List<ExpenseModel> get borrowedMoney => _expenseList
+      .where((e) => e.isBorrowed && e.isPending)
+      .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  
+  List<ExpenseModel> get lentMoney => _expenseList
+      .where((e) => e.isLent && e.isPending)
+      .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  
+  List<ExpenseModel> get settledTransactions => _expenseList
+      .where((e) => (e.isBorrowed || e.isLent) && e.isSettled)
+      .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  
   double get totalSpent {
-    return _expenseList.fold(0.0, (sum, expense) => sum + expense.amount);
+    final now = DateTime.now();
+    return regularExpenses
+        .where((e) => e.date.year == now.year && e.date.month == now.month)
+        .fold(0.0, (sum, expense) => sum + expense.amount);
   }
+  
+  double get totalBorrowed => borrowedMoney.fold(0.0, (sum, e) => sum + e.amount);
+  
+  double get totalLent => lentMoney.fold(0.0, (sum, e) => sum + e.amount);
   
   double get remainingBudget => _monthlyBudget - totalSpent;
   
   double get budgetPercentage {
     if (_monthlyBudget == 0) return 0;
-    return (totalSpent / _monthlyBudget) * 100;
+    return (totalSpent / _monthlyBudget * 100).clamp(0, 100);
   }
-  
-  Map<String, double> get expensesByCategory {
-    final Map<String, double> categoryTotals = {};
-    for (var expense in _expenseList) {
-      categoryTotals[expense.category] = 
-          (categoryTotals[expense.category] ?? 0) + expense.amount;
-    }
-    return categoryTotals;
-  }
-  
-  List<ExpenseModel> get recentExpenses => _expenseList
-      .take(10)
-      .toList();
   
   ExpenseProvider() {
     loadExpenseData();
@@ -47,7 +61,7 @@ class ExpenseProvider extends ChangeNotifier {
       _expenseList.sort((a, b) => b.date.compareTo(a.date));
       notifyListeners();
     } catch (e) {
-      print('Error loading expense data: $e');
+      debugPrint('Error loading expenses: $e');
     }
   }
   
@@ -59,7 +73,7 @@ class ExpenseProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print('Error loading budget: $e');
+      debugPrint('Error loading budget: $e');
     }
   }
   
@@ -69,7 +83,7 @@ class ExpenseProvider extends ChangeNotifier {
       _monthlyBudget = budget;
       notifyListeners();
     } catch (e) {
-      print('Error updating budget: $e');
+      debugPrint('Error updating budget: $e');
     }
   }
   
@@ -80,7 +94,8 @@ class ExpenseProvider extends ChangeNotifier {
       _expenseList.sort((a, b) => b.date.compareTo(a.date));
       notifyListeners();
     } catch (e) {
-      print('Error adding expense: $e');
+      debugPrint('Error adding expense: $e');
+      rethrow;
     }
   }
   
@@ -94,7 +109,20 @@ class ExpenseProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print('Error updating expense: $e');
+      debugPrint('Error updating expense: $e');
+      rethrow;
+    }
+  }
+  
+  Future<void> markAsSettled(String id) async {
+    try {
+      final index = _expenseList.indexWhere((item) => item.id == id);
+      if (index != -1) {
+        final updated = _expenseList[index].copyWith(status: 'settled');
+        await updateExpense(updated);
+      }
+    } catch (e) {
+      debugPrint('Error marking as settled: $e');
     }
   }
   
@@ -104,7 +132,15 @@ class ExpenseProvider extends ChangeNotifier {
       _expenseList.removeWhere((item) => item.id == id);
       notifyListeners();
     } catch (e) {
-      print('Error deleting expense: $e');
+      debugPrint('Error deleting expense: $e');
+    }
+  }
+  
+  ExpenseModel? getExpenseById(String id) {
+    try {
+      return _expenseList.firstWhere((item) => item.id == id);
+    } catch (e) {
+      return null;
     }
   }
 }

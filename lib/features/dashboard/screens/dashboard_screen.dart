@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:life_hub/core/widgets/app_logo.dart';
 import 'package:life_hub/features/events/screens/events_list_screen.dart';
+import 'package:life_hub/features/expense/screens/expense_list_screen.dart';
 import 'package:life_hub/features/loan_maintenance/screens/loan_maintenance_list_screen.dart';
 import 'package:life_hub/features/settings/widgets/profile_avatar.dart';
 import 'package:life_hub/features/todo/screens/todo_list_screen.dart';
@@ -253,7 +254,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppColors.yellowGradientStart,
                 AppColors.yellowGradientEnd,
               ],
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) =>  ExpenseListScreen()),
+                );
+              },
             ),
           ],
         );

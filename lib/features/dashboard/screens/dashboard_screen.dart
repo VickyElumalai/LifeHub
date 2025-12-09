@@ -249,7 +249,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: 40,
               ),
               title: AppStrings.expense,
-              count: '\$${expenseProvider.totalSpent.toStringAsFixed(0)}',
+              count: '₹${expenseProvider.totalSpent.toStringAsFixed(0)}',
               gradientColors: const [
                 AppColors.yellowGradientStart,
                 AppColors.yellowGradientEnd,
@@ -272,14 +272,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context, todoProvider, expenseProvider, _) {
         return StatsCardGroup(
           stats: [
-            StatsCardData(
-              label: 'Tasks Completed',
-              value: '${todoProvider.completedTasks}/${todoProvider.totalTasks}',
-              progress: todoProvider.completionPercentage / 100,
-            ),
+            // StatsCardData(
+            //   label: 'Tasks Completed',
+            //   value: '${todoProvider.completedTasks}/${todoProvider.totalTasks}',
+            //   progress: todoProvider.completionPercentage / 100,
+            // ),
             StatsCardData(
               label: 'Budget Used',
-              value: '\$${expenseProvider.totalSpent.toStringAsFixed(0)}/\$${expenseProvider.monthlyBudget.toStringAsFixed(0)}',
+              value: '₹${expenseProvider.totalSpent.toStringAsFixed(0)}/₹${expenseProvider.monthlyBudget.toStringAsFixed(0)}',
               progress: expenseProvider.budgetPercentage / 100,
             ),
           ],

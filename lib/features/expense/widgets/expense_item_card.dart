@@ -25,21 +25,21 @@ class ExpenseItemCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 15),
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
           border: Border.all(
             color: _getBorderColor().withOpacity(0.3),
-            width: 2,
+            width: 1.5,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: isDark
               ? []
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 6,
+                    offset: const Offset(0, 1),
                   ),
                 ],
         ),
@@ -47,27 +47,27 @@ class ExpenseItemCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: _getGradientColors(),
                           ),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
                           _getIcon(),
                           color: Colors.white,
-                          size: 24,
+                          size: 16,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,31 +79,31 @@ class ExpenseItemCard extends StatelessWidget {
                                     expense.description,
                                     style: TextStyle(
                                       color: AppColors.getTextColor(context),
-                                      fontSize: 16,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                const SizedBox(width: 6),
                                 _buildStatusBadge(),
                               ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Row(
                               children: [
                                 Icon(
                                   Icons.calendar_today,
-                                  size: 12,
+                                  size: 10,
                                   color: AppColors.getSubtitleColor(context),
                                 ),
-                                const SizedBox(width: 4),
+                                const SizedBox(width: 3),
                                 Text(
-                                  DateFormat('MMM dd, yyyy').format(expense.date),
+                                  DateFormat('MMM dd').format(expense.date),
                                   style: TextStyle(
                                     color: AppColors.getSubtitleColor(context),
-                                    fontSize: 12,
+                                    fontSize: 10,
                                   ),
                                 ),
                               ],
@@ -111,31 +111,41 @@ class ExpenseItemCard extends StatelessWidget {
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '₹${expense.amount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          color: _getBorderColor(),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                   if (expense.personName != null) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: _getBorderColor().withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.person,
-                            size: 16,
+                            size: 12,
                             color: _getBorderColor(),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 4),
                           Text(
                             expense.isBorrowed
-                                ? 'Borrowed from: ${expense.personName}'
-                                : 'Lent to: ${expense.personName}',
+                                ? 'From: ${expense.personName}'
+                                : 'To: ${expense.personName}',
                             style: TextStyle(
                               color: AppColors.getTextColor(context),
-                              fontSize: 13,
+                              fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -143,42 +153,21 @@ class ExpenseItemCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Amount',
-                        style: TextStyle(
-                          color: AppColors.getSubtitleColor(context),
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        '₹${expense.amount.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          color: _getBorderColor(),
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
                   if (expense.attachmentPath != null) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                       child: Image.file(
                         File(expense.attachmentPath!),
-                        height: 100,
+                        height: 80,
                         width: double.infinity,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
-                            height: 100,
+                            height: 80,
                             color: Colors.grey.withOpacity(0.2),
                             child: const Center(
-                              child: Icon(Icons.broken_image, size: 30),
+                              child: Icon(Icons.broken_image, size: 20),
                             ),
                           );
                         },
@@ -274,7 +263,7 @@ class ExpenseItemCard extends StatelessWidget {
           ),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -282,10 +271,10 @@ class ExpenseItemCard extends StatelessWidget {
             GestureDetector(
               onTap: onSettle,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.completed.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: AppColors.completed.withOpacity(0.3),
                   ),
@@ -295,14 +284,14 @@ class ExpenseItemCard extends StatelessWidget {
                     Icon(
                       Icons.check_circle,
                       color: AppColors.completed,
-                      size: 16,
+                      size: 14,
                     ),
-                    SizedBox(width: 6),
+                    SizedBox(width: 4),
                     Text(
-                      'Mark Settled',
+                      'Settle',
                       style: TextStyle(
                         color: AppColors.completed,
-                        fontSize: 13,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -310,7 +299,7 @@ class ExpenseItemCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
           ],
           if (onDelete != null)
             GestureDetector(
@@ -318,7 +307,7 @@ class ExpenseItemCard extends StatelessWidget {
               child: const Icon(
                 Icons.delete_outline,
                 color: AppColors.highPriority,
-                size: 20,
+                size: 18,
               ),
             ),
         ],

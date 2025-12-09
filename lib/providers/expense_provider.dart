@@ -9,26 +9,47 @@ class ExpenseProvider extends ChangeNotifier {
   List<ExpenseModel> get expenseList => _expenseList;
   double get monthlyBudget => _monthlyBudget;
   
+  // Regular expenses (money you spent)
   List<ExpenseModel> get regularExpenses => _expenseList
       .where((e) => e.isExpense)
       .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   
+  // Last week expenses (default view)
+  List<ExpenseModel> get lastWeekExpenses {
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    return regularExpenses
+        .where((e) => e.date.isAfter(weekAgo))
+        .toList();
+  }
+  
+  // This month expenses
+  List<ExpenseModel> get thisMonthExpenses {
+    final now = DateTime.now();
+    return regularExpenses
+        .where((e) => e.date.year == now.year && e.date.month == now.month)
+        .toList();
+  }
+  
+  // Money you borrowed (you owe)
   List<ExpenseModel> get borrowedMoney => _expenseList
       .where((e) => e.isBorrowed && e.isPending)
       .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   
+  // Money you lent (others owe you)
   List<ExpenseModel> get lentMoney => _expenseList
       .where((e) => e.isLent && e.isPending)
       .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   
+  // Settled borrowed/lent transactions
   List<ExpenseModel> get settledTransactions => _expenseList
       .where((e) => (e.isBorrowed || e.isLent) && e.isSettled)
       .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   
+  // Total spent this month (only regular expenses)
   double get totalSpent {
     final now = DateTime.now();
     return regularExpenses
@@ -36,8 +57,10 @@ class ExpenseProvider extends ChangeNotifier {
         .fold(0.0, (sum, expense) => sum + expense.amount);
   }
   
+  // Total borrowed (pending only)
   double get totalBorrowed => borrowedMoney.fold(0.0, (sum, e) => sum + e.amount);
   
+  // Total lent (pending only)
   double get totalLent => lentMoney.fold(0.0, (sum, e) => sum + e.amount);
   
   double get remainingBudget => _monthlyBudget - totalSpent;
@@ -46,11 +69,24 @@ class ExpenseProvider extends ChangeNotifier {
     if (_monthlyBudget == 0) return 0;
     return (totalSpent / _monthlyBudget * 100).clamp(0, 100);
   }
+
+  // Add this method after the settledTransactions getter
+  List<ExpenseModel> getFilteredSettledTransactions(String filter) {
+    if (filter == 'all') {
+      return settledTransactions;
+    } else if (filter == 'borrowed') {
+      return settledTransactions.where((e) => e.isBorrowed).toList();
+    } else if (filter == 'lent') {
+      return settledTransactions.where((e) => e.isLent).toList();
+    }
+    return settledTransactions;
+  }
   
   ExpenseProvider() {
     loadExpenseData();
     loadBudget();
   }
+  
   
   Future<void> loadExpenseData() async {
     try {

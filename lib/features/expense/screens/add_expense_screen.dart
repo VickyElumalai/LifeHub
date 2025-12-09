@@ -260,7 +260,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
               ? color.withOpacity(0.2)
@@ -275,14 +275,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? color : AppColors.getTextColor(context),
-              size: 24,
-            ),
-            const SizedBox(height: 6),
+        child: Center(
+          child: 
             Text(
               label,
               style: TextStyle(
@@ -291,7 +285,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
-          ],
+          
         ),
       ),
     );

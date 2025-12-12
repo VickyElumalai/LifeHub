@@ -1055,7 +1055,7 @@ class _ExpenseListScreenState extends State<ExpenseListScreen>
     final provider = Provider.of<ExpenseProvider>(context, listen: false);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Calculate last 10 months data
+    // Calculate last 10 months data, but only include months with expenses
     final now = DateTime.now();
     final monthsData = <Map<String, dynamic>>[];
 
@@ -1065,17 +1065,92 @@ class _ExpenseListScreenState extends State<ExpenseListScreen>
         return e.date.year == month.year && e.date.month == month.month;
       }).toList();
 
-      final spent = expenses.fold(0.0, (sum, e) => sum + e.amount);
-      final remaining = provider.monthlyBudget - spent;
+      // FIXED: Only include months that have expenses
+      if (expenses.isNotEmpty) {
+        final spent = expenses.fold(0.0, (sum, e) => sum + e.amount);
+        final remaining = provider.monthlyBudget - spent;
 
-      monthsData.add({
-        'month': month,
-        'spent': spent,
-        'remaining': remaining,
-        'count': expenses.length,
-      });
+        monthsData.add({
+          'month': month,
+          'spent': spent,
+          'remaining': remaining,
+          'count': expenses.length,
+        });
+      }
     }
 
+    // If no history, show message
+    if (monthsData.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: isDark ? AppColors.darkCard : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              const Icon(
+                Icons.history,
+                color: AppColors.purpleGradientStart,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Budget History',
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.inbox_outlined,
+                size: 64,
+                color: AppColors.getSubtitleColor(context).withOpacity(0.5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No expense history yet',
+                style: TextStyle(
+                  color: AppColors.getTextColor(context),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Start tracking your expenses to see monthly history',
+                style: TextStyle(
+                  color: AppColors.getSubtitleColor(context),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  color: AppColors.purpleGradientStart,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Show history dialog with actual data
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -1111,14 +1186,27 @@ class _ExpenseListScreenState extends State<ExpenseListScreen>
                       size: 24,
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Budget History',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Budget History',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${monthsData.length} month${monthsData.length > 1 ? 's' : ''} with expenses',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     GestureDetector(
@@ -1180,11 +1268,22 @@ class _ExpenseListScreenState extends State<ExpenseListScreen>
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              Text(
-                                '$count expenses',
-                                style: TextStyle(
-                                  color: AppColors.getSubtitleColor(context),
-                                  fontSize: 11,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.purpleGradientStart.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '$count expense${count > 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                    color: AppColors.purpleGradientStart,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],

@@ -81,13 +81,28 @@ class LoanItemCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            loan.title,
-                            style: TextStyle(
-                              color: AppColors.getTextColor(context),
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  loan.title,
+                                  style: TextStyle(
+                                    color: AppColors.getTextColor(context),
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              // MOVED: Total amount to right side of title
+                              Text(
+                                '₹${loan.totalAmount?.toStringAsFixed(0) ?? '0'}',
+                                style: TextStyle(
+                                  color: AppColors.getTextColor(context),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -100,6 +115,7 @@ class LoanItemCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     if (loan.isOverdue)
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -135,6 +151,7 @@ class LoanItemCard extends StatelessWidget {
                 const SizedBox(height: 16),
                 _buildProgressSection(context, isDark),
                 const SizedBox(height: 16),
+                // CHANGED: Show Paid, Remaining, and next due date
                 _buildAmountSection(context),
                 const SizedBox(height: 16),
                 _buildNextDueDateSection(context, isDark),
@@ -232,6 +249,7 @@ class LoanItemCard extends StatelessWidget {
     );
   }
 
+  // UPDATED: Now shows Paid and Remaining
   Widget _buildAmountSection(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -255,29 +273,6 @@ class LoanItemCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Total Amount',
-                  style: TextStyle(
-                    color: AppColors.getSubtitleColor(context),
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '₹${loan.totalAmount?.toStringAsFixed(0) ?? '0'}',
-                  style: TextStyle(
-                    color: AppColors.getTextColor(context),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),         
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
                   'Paid',
                   style: TextStyle(
                     color: AppColors.getSubtitleColor(context),
@@ -289,6 +284,34 @@ class LoanItemCard extends StatelessWidget {
                   '₹${loan.totalPaid.toStringAsFixed(0)}',
                   style: const TextStyle(
                     color: AppColors.completed,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 40,
+            color: AppColors.greenGradientStart.withOpacity(0.3),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Remaining',
+                  style: TextStyle(
+                    color: AppColors.getSubtitleColor(context),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '₹${loan.remainingAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: AppColors.mediumPriority,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),

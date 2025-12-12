@@ -15,7 +15,17 @@ class ExpenseProvider extends ChangeNotifier {
       .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   
-  // Last week expenses (default view)
+  // FIXED: Smart default view - show this month if no expenses this week
+  List<ExpenseModel> get defaultExpenses {
+    final weekExpenses = lastWeekExpenses;
+    if (weekExpenses.isNotEmpty) {
+      return weekExpenses;
+    }
+    // If no expenses this week, show this month's expenses
+    return thisMonthExpenses;
+  }
+  
+  // Last week expenses
   List<ExpenseModel> get lastWeekExpenses {
     final weekAgo = DateTime.now().subtract(const Duration(days: 7));
     return regularExpenses
@@ -70,7 +80,6 @@ class ExpenseProvider extends ChangeNotifier {
     return (totalSpent / _monthlyBudget * 100).clamp(0, 100);
   }
 
-  // Add this method after the settledTransactions getter
   List<ExpenseModel> getFilteredSettledTransactions(String filter) {
     if (filter == 'all') {
       return settledTransactions;
@@ -86,7 +95,6 @@ class ExpenseProvider extends ChangeNotifier {
     loadExpenseData();
     loadBudget();
   }
-  
   
   Future<void> loadExpenseData() async {
     try {

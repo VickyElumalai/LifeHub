@@ -1,19 +1,15 @@
 import 'dart:ui';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:life_hub/data/service/hive_service.dart';
 
-// FIXED: WorkManager callback with sound/vibration settings support
+// WorkManager will call this function in the background
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
-      // Load settings from Hive in background
-      final soundEnabled = await HiveService.getData('settingsBox', 'sound') ?? true;
-      final vibrationEnabled = await HiveService.getData('settingsBox', 'vibration') ?? true;
-      
       // Initialize notifications in background
       final FlutterLocalNotificationsPlugin notifications = 
           FlutterLocalNotificationsPlugin();
@@ -27,12 +23,12 @@ void callbackDispatcher() {
       final content = inputData?['content'] ?? 'Your task is due';
       final id = inputData?['id'] ?? 0;
 
-      // FIXED: Show notification with settings-based sound and vibration
+      // Show the notification
       await notifications.show(
         id,
         '⏰ $title',
         content,
-        NotificationDetails(
+        const NotificationDetails(
           android: AndroidNotificationDetails(
             'task_reminders',
             'Task Reminders',
@@ -40,10 +36,10 @@ void callbackDispatcher() {
             importance: Importance.max,
             priority: Priority.high,
             icon: '@mipmap/ic_launcher',
-            playSound: soundEnabled, // Use setting
-            enableVibration: vibrationEnabled, // Use setting
+            playSound: true,
+            enableVibration: true,
             enableLights: true,
-            ledColor: const Color(0xFF667eea),
+            ledColor: Color(0xFF667eea),
             ledOnMs: 1000,
             ledOffMs: 500,
             visibility: NotificationVisibility.public,
@@ -55,7 +51,7 @@ void callbackDispatcher() {
 
       return Future.value(true);
     } catch (e) {
-      print('Error in notification callback: $e');
+      // Return false if something went wrong
       return Future.value(false);
     }
   });
@@ -75,7 +71,7 @@ class NotificationService {
 
     await Workmanager().initialize(
       callbackDispatcher,
-      isInDebugMode: false,
+      isInDebugMode: false, // Set to false for production
     );
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -95,30 +91,13 @@ class NotificationService {
     _initialized = true;
   }
 
-  /// FIXED: Check if notifications are enabled before scheduling
-  static Future<bool> _areNotificationsEnabled() async {
-    try {
-      final notificationsEnabled = await HiveService.getData('settingsBox', 'notifications') ?? true;
-      return notificationsEnabled;
-    } catch (e) {
-      print('Error checking notification settings: $e');
-      return true; // Default to enabled if error
-    }
-  }
-
-  /// Schedule task notification
+  /// This will work even when the app is closed or phone is sleeping
   static Future<void> scheduleTaskNotification({
     required String id,
     required String title,
     required String content,
     required DateTime scheduledTime,
   }) async {
-    // Check if notifications are enabled
-    if (!await _areNotificationsEnabled()) {
-      print('⏭️ Notifications disabled, skipping task notification');
-      return;
-    }
-
     await initialize();
 
     final notificationTime = scheduledTime.subtract(const Duration(minutes: 1));    
@@ -148,7 +127,6 @@ class NotificationService {
     );
   }
 
-  // FIXED: Loan/Maintenance notification with settings check
   static Future<void> scheduleLoanMaintenanceNotification({
     required String id,
     required String title,
@@ -156,35 +134,25 @@ class NotificationService {
     required DateTime scheduledTime,
     required int reminderDays,
   }) async {
-    // Check if notifications are enabled
-    if (!await _areNotificationsEnabled()) {
-      print('⏭️ Notifications disabled, skipping loan/maintenance notification');
-      return;
-    }
-
     await initialize();
 
-    // Calculate notification time: reminderDays before at 9 AM
-    final notificationDate = scheduledTime.subtract(Duration(days: reminderDays));
+    // Schedule notification X days before at 9 AM
     final notificationTime = DateTime(
-      notificationDate.year,
-      notificationDate.month,
-      notificationDate.day,
-      9,  // 9 AM
-      0,
+      scheduledTime.year,
+      scheduledTime.month,
+      scheduledTime.day - reminderDays,8,  0,
     );
     
     // Only schedule if notification time is in the future
     if (notificationTime.isBefore(DateTime.now())) {
-      print('❌ Loan/Maintenance notification time ($notificationTime) is in the past, not scheduling');
+      print('Loan/Maintenance notification time is in the past, not scheduling');
       return;
     }
 
-    print('✅ Scheduling loan/maintenance notification:');
-    print('   ID: $id');
-    print('   Due date: $scheduledTime');
-    print('   Notification time: $notificationTime (${reminderDays} days before at 9 AM)');
+    print('Scheduling loan/maintenance notification for: $notificationTime');
+    print('Reminder: $reminderDays days before due date');
 
+    // 🔧 FIX: Use WorkManager instead of zonedSchedule for reliability
     final delay = notificationTime.difference(DateTime.now());
     final taskName = 'loan_maintenance_$id';
 
@@ -194,7 +162,7 @@ class NotificationService {
       initialDelay: delay,
       inputData: {
         'title': title,
-        'content': '$content - Due in $reminderDays day${reminderDays > 1 ? 's' : ''}',
+        'content': '$content - Due in $reminderDays days',
         'id': id.hashCode.abs() % 2147483647,
       },
       constraints: Constraints(
@@ -205,9 +173,8 @@ class NotificationService {
         requiresStorageNotLow: false,
       ),
     );
-    
-    print('✅ Successfully scheduled notification');
   }
+
 
   static Future<void> scheduleReminder({
     required String reminderId,      
@@ -215,12 +182,6 @@ class NotificationService {
     required String body,
     required DateTime fireAt,        
   }) async {
-    // Check if notifications are enabled
-    if (!await _areNotificationsEnabled()) {
-      print('⏭️ Notifications disabled, skipping reminder');
-      return;
-    }
-
     await initialize();
 
     if (fireAt.isBefore(DateTime.now())) return;
@@ -252,13 +213,11 @@ class NotificationService {
     try {
       await Workmanager().cancelByUniqueName(taskName1);
     } catch (e) {
-      // Ignore if task doesn't exist
     }
     
     try {
       await Workmanager().cancelByUniqueName(taskName2);
     } catch (e) {
-      // Ignore if task doesn't exist
     }
   }
 
@@ -267,18 +226,13 @@ class NotificationService {
     await _notifications.cancelAll();
   }
 
+  
   static Future<void> scheduleMaintenanceNotification({
       required String id,
       required String title,
       required String content,
       required DateTime scheduledTime,
     }) async {
-      // Check if notifications are enabled
-      if (!await _areNotificationsEnabled()) {
-        print('⏭️ Notifications disabled, skipping maintenance notification');
-        return;
-      }
-
       final now = DateTime.now();
 
       // Schedule notification 1 day before at 9 AM
@@ -299,14 +253,14 @@ class NotificationService {
         0,
       );
 
-      print('📅 Scheduling maintenance notifications:');
+      print(' Scheduling maintenance notifications:');
       print('   ID: $id');
       print('   Due date: $scheduledTime');
 
       // Schedule 1-day before notification
       if (oneDayBefore.isAfter(now)) {
         final delay1Day = oneDayBefore.difference(now);
-        print('   ✅ 1-day reminder: $oneDayBefore (${delay1Day.inHours}h from now)');
+        print('   1-day reminder: $oneDayBefore (${delay1Day.inHours}h)');
 
         await Workmanager().registerOneOffTask(
           'maintenance_${id}_1day',
@@ -314,19 +268,17 @@ class NotificationService {
           initialDelay: delay1Day,
           inputData: {
             'id': '${id}_1day'.hashCode,
-            'title': '🔧 Maintenance Due Tomorrow',
+            'title': ' Maintenance Due Tomorrow',
             'body': content,
             'type': 'maintenance',
           },
         );
-      } else {
-        print('   ⏭️ 1-day reminder in past, skipping');
       }
 
       // Schedule due date notification
       if (onDueDate.isAfter(now)) {
         final delayDueDate = onDueDate.difference(now);
-        print('   ✅ Due date reminder: $onDueDate (${delayDueDate.inHours}h from now)');
+        print('   Due date reminder: $onDueDate (${delayDueDate.inHours}h)');
 
         await Workmanager().registerOneOffTask(
           'maintenance_$id',
@@ -334,15 +286,13 @@ class NotificationService {
           initialDelay: delayDueDate,
           inputData: {
             'id': id.hashCode,
-            'title': '🔧 Maintenance Due Today!',
+            'title': ' Maintenance Due Today!',
             'body': content,
             'type': 'maintenance',
           },
         );
-      } else {
-        print('   ⏭️ Due date reminder in past, skipping');
       }
 
-      print('✅ Maintenance notifications scheduled');
+      print(' Maintenance notifications scheduled');
     }
 }
